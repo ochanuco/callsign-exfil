@@ -11,9 +11,11 @@
 #include "CallsignExfil.h"
 #include "Camera/CallsignShoulderCameraComponent.h"
 #include "Combat/CallsignCombatResolver.h"
+#include "Data/CallsignSupportTypes.h"
 #include "Data/CallsignTypes.h"
 #include "Data/CallsignWeaponDefinition.h"
 #include "Data/CallsignWeaponTypes.h"
+#include "Support/CallsignSupportSystem.h"
 #include "HUD/CallsignMessageBus.h"
 #include "Inventory/CallsignInventoryComponent.h"
 #include "Node/CallsignNode.h"
@@ -131,6 +133,10 @@ void ACallsignExfilPlayerController::SetupInputComponent()
 		InputComponent->BindKey(EKeys::Two,   IE_Pressed, this, &ACallsignExfilPlayerController::CsxShoot);
 		InputComponent->BindKey(EKeys::Three, IE_Pressed, this, &ACallsignExfilPlayerController::CsxReload);
 		InputComponent->BindKey(EKeys::Four,  IE_Pressed, this, &ACallsignExfilPlayerController::CsxEndTurn);
+		// Phase 3 demo (ADR-004 §4.3): support requests on cursor node.
+		InputComponent->BindKey(EKeys::Five,  IE_Pressed, this, &ACallsignExfilPlayerController::CsxSupportPrecisionStrike);
+		InputComponent->BindKey(EKeys::Six,   IE_Pressed, this, &ACallsignExfilPlayerController::CsxSupportSupplyPod);
+		InputComponent->BindKey(EKeys::Seven, IE_Pressed, this, &ACallsignExfilPlayerController::CsxSupportOrbitalBarrage);
 		InputComponent->BindKey(EKeys::LeftMouseButton, IE_Pressed, this,
 			&ACallsignExfilPlayerController::HandleLeftClickToMoveNode);
 	}
@@ -550,6 +556,79 @@ ACallsignNode* ACallsignExfilPlayerController::GetNodeUnderCursor() const
 		return nullptr;
 	}
 	return Cast<ACallsignNode>(Hit.GetActor());
+}
+
+bool ACallsignExfilPlayerController::TryRequestSupport(ECallsignSupportType Type, ACallsignNode* AtNode)
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return false;
+	}
+	if (!IsMyTurn())
+	{
+		UE_LOG(LogTemp, Display, TEXT("[PC|Support] reject: not my turn"));
+		CallsignMsg::PushPlayer(World, TEXT("自分のターンではない。"));
+		return false;
+	}
+	if (!AtNode)
+	{
+		UE_LOG(LogTemp, Display, TEXT("[PC|Support] reject: no AtNode (cursor not over a node)"));
+		CallsignMsg::PushPlayer(World, TEXT("対象ノードを指定してください。"));
+		return false;
+	}
+	if (AtNode->bIsDestroyed)
+	{
+		UE_LOG(LogTemp, Display, TEXT("[PC|Support] reject: target node already destroyed"));
+		CallsignMsg::PushPlayer(World, TEXT("対象ノードは既に破壊されている。"));
+		return false;
+	}
+
+	UCallsignSupportSystem* SupportSys = World->GetSubsystem<UCallsignSupportSystem>();
+	if (!SupportSys)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[PC|Support] no UCallsignSupportSystem subsystem"));
+		return false;
+	}
+
+	const FGuid Id = SupportSys->RequestSupport(Type, AtNode->GetActorLocation(), GetPawn());
+	if (!Id.IsValid())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[PC|Support] RequestSupport returned invalid id (no definition?)"));
+		CallsignMsg::PushPlayer(World, TEXT("支援要請に失敗した。"));
+		return false;
+	}
+
+	const TCHAR* TypeName = TEXT("Unknown");
+	switch (Type)
+	{
+	case ECallsignSupportType::PrecisionStrike: TypeName = TEXT("精密射撃"); break;
+	case ECallsignSupportType::SupplyPod:        TypeName = TEXT("補給投下"); break;
+	case ECallsignSupportType::OrbitalBarrage:   TypeName = TEXT("軌道砲撃"); break;
+	}
+	CallsignMsg::PushPlayer(World, FString::Printf(TEXT("%s を要請。"), TypeName));
+
+	// Phase 3 (ADR-004 §4.3): submitting the request consumes the player turn.
+	if (UCallsignTurnSystem* TurnSys = World->GetSubsystem<UCallsignTurnSystem>())
+	{
+		TurnSys->EndCurrentTurn();
+	}
+	return true;
+}
+
+void ACallsignExfilPlayerController::CsxSupportPrecisionStrike()
+{
+	TryRequestSupport(ECallsignSupportType::PrecisionStrike, GetNodeUnderCursor());
+}
+
+void ACallsignExfilPlayerController::CsxSupportSupplyPod()
+{
+	TryRequestSupport(ECallsignSupportType::SupplyPod, GetNodeUnderCursor());
+}
+
+void ACallsignExfilPlayerController::CsxSupportOrbitalBarrage()
+{
+	TryRequestSupport(ECallsignSupportType::OrbitalBarrage, GetNodeUnderCursor());
 }
 
 void ACallsignExfilPlayerController::HandleLeftClickToMoveNode()

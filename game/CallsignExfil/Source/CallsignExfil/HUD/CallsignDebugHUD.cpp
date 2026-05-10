@@ -15,7 +15,9 @@
 #include "Node/CallsignNode.h"
 #include "Turn/CallsignTurnSystem.h"
 #include "LineOfSight/CallsignLineOfSightService.h"
+#include "Data/CallsignSupportTypes.h"
 #include "Data/CallsignTypes.h"
+#include "Support/CallsignSupportSystem.h"
 
 void ACallsignDebugHUD::BeginPlay()
 {
@@ -34,7 +36,8 @@ void ACallsignDebugHUD::DrawHUD()
                 return;
         }
 
-        if (!bShowTurnInfo && !bShowLoSPreview && !bShowMessageLog && !bShowKeyHelp && !bShowTargetingPreview)
+        if (!bShowTurnInfo && !bShowLoSPreview && !bShowMessageLog && !bShowKeyHelp
+                && !bShowTargetingPreview && !bShowSupportPreview)
         {
                 return;
         }
@@ -156,6 +159,67 @@ void ACallsignDebugHUD::DrawHUD()
                                                 /*DepthPriority*/ SDPG_Foreground, /*Thickness*/ 4.f,
                                                 /*YAxis*/ FVector(0.f, 1.f, 0.f), /*XAxis*/ FVector(1.f, 0.f, 0.f),
                                                 /*bDrawAxis*/ false);
+                                }
+                        }
+                }
+        }
+
+        // ---- 2b''. Support preview ----
+        // ADR-004 §8: pending list text (top-left) + DrawDebugSphere blast
+        // radius (Yellow normally, Red on the about-to-fire turn) and an
+        // outer Orange sphere for terrain-destruction radius when set.
+        if (bShowSupportPreview)
+        {
+                if (UCallsignSupportSystem* SupportSys = World->GetSubsystem<UCallsignSupportSystem>())
+                {
+                        const TArray<FCallsignSupportRequest> Pending = SupportSys->GetPendingRequests();
+                        if (Pending.Num() > 0)
+                        {
+                                const float TextScale = 2.0f;
+                                const float LineStep = 44.f;
+                                const float HeaderY = 90.f;
+                                DrawText(TEXT("Support Pending"), FLinearColor(1.0f, 0.85f, 0.3f, 1.0f),
+                                        30.f, HeaderY, /*Font*/ nullptr, TextScale, false);
+                                for (int32 i = 0; i < Pending.Num(); ++i)
+                                {
+                                        const FCallsignSupportRequest& R = Pending[i];
+                                        const TCHAR* TypeName = TEXT("?");
+                                        if (R.Definition)
+                                        {
+                                                switch (R.Definition->SupportType)
+                                                {
+                                                case ECallsignSupportType::PrecisionStrike: TypeName = TEXT("PrecisionStrike"); break;
+                                                case ECallsignSupportType::SupplyPod:        TypeName = TEXT("SupplyPod"); break;
+                                                case ECallsignSupportType::OrbitalBarrage:   TypeName = TEXT("OrbitalBarrage"); break;
+                                                }
+                                        }
+                                        const FString Line = FString::Printf(
+                                                TEXT("[%d] %s %dT -> (%.0f,%.0f)"),
+                                                i + 1, TypeName, R.TurnsRemaining,
+                                                R.TargetLocation.X, R.TargetLocation.Y);
+                                        const FLinearColor Color = (R.TurnsRemaining <= 0)
+                                                ? FLinearColor(1.0f, 0.4f, 0.4f, 1.0f)
+                                                : FLinearColor(1.0f, 0.85f, 0.3f, 1.0f);
+                                        DrawText(Line, Color, 30.f, HeaderY + LineStep * (i + 1),
+                                                /*Font*/ nullptr, TextScale * 0.8f, false);
+
+                                        if (R.Definition)
+                                        {
+                                                const FColor SphereColor = (R.TurnsRemaining <= 0)
+                                                        ? FColor(255, 80, 80)
+                                                        : FColor(255, 220, 80);
+                                                DrawDebugSphere(World, R.TargetLocation, R.Definition->RadiusCm, /*Segments*/ 16,
+                                                        SphereColor, /*bPersistent*/ false, /*Lifetime*/ 0.05f,
+                                                        /*DepthPriority*/ SDPG_Foreground, /*Thickness*/ 2.0f);
+                                                if (R.Definition->TerrainDestructionRadiusCm > 0.f)
+                                                {
+                                                        const FColor TerrainColor(255, 140, 60);
+                                                        DrawDebugSphere(World, R.TargetLocation,
+                                                                R.Definition->TerrainDestructionRadiusCm, /*Segments*/ 16,
+                                                                TerrainColor, /*bPersistent*/ false, /*Lifetime*/ 0.05f,
+                                                                /*DepthPriority*/ SDPG_Foreground, /*Thickness*/ 1.5f);
+                                                }
+                                        }
                                 }
                         }
                 }
@@ -283,6 +347,9 @@ void ACallsignDebugHUD::DrawHUD()
                         { TEXT("[2]"), TEXT("射撃") },
                         { TEXT("[3]"), TEXT("リロード") },
                         { TEXT("[4]"), TEXT("ターン終了") },
+                        { TEXT("[5]"), TEXT("精密射撃 要請") },
+                        { TEXT("[6]"), TEXT("補給投下 要請") },
+                        { TEXT("[7]"), TEXT("軌道砲撃 要請") },
                         { TEXT("[LMB]"), TEXT("隣接ノードへ移動") },
                 };
                 static constexpr int32 HintCount = sizeof(Hints) / sizeof(Hints[0]);

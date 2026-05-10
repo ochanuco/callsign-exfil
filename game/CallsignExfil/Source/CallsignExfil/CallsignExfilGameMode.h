@@ -37,6 +37,15 @@ public:
 	UPROPERTY(EditDefaultsOnly, Category = "Callsign|Phase1Demo")
 	bool bSpawnEnvironmentDressing = true;
 
+	/**
+	 *  ADR-004: when true, BeginPlay also builds three transient
+	 *  UCallsignSupportDefinition objects (PrecisionStrike / SupplyPod /
+	 *  OrbitalBarrage) and registers them with UCallsignSupportSystem so
+	 *  the player keys 5/6/7 work in the demo without authoring assets.
+	 */
+	UPROPERTY(EditDefaultsOnly, Category = "Callsign|Phase3Demo")
+	bool bAutoInitPhase3SupportDemo = true;
+
 	/** When true, BeginPlay starts a timer that auto-ends the current turn. */
 	UPROPERTY(EditDefaultsOnly, Category = "Callsign|Phase1Demo")
 	bool bAutoAdvanceTurns = true;
@@ -72,6 +81,15 @@ private:
 	 *  authored assets are required. Origin is the grid center (player loc).
 	 */
 	void SpawnEnvironmentDressing(const FVector& Origin);
+
+	/**
+	 *  ADR-004: builds 3 transient UCallsignSupportDefinition objects and
+	 *  registers them with UCallsignSupportSystem so the demo can issue
+	 *  PrecisionStrike / SupplyPod / OrbitalBarrage requests without any
+	 *  Editor Data Asset authoring. Mirrors EquipPhase2DemoLoadout's
+	 *  "transient defs owned by GameMode" pattern.
+	 */
+	void InitPhase3SupportDemo();
 
 	/**
 	 *  Phase 2 demo helper: builds a transient UCallsignWeaponDefinition + WeaponInstanceObject

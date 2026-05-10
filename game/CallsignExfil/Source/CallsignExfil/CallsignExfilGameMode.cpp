@@ -11,7 +11,9 @@
 #include "HUD/CallsignMessageBus.h"
 #include "Inventory/CallsignInventoryComponent.h"
 #include "Weapon/CallsignWeaponInstanceObject.h"
+#include "Data/CallsignSupportTypes.h"
 #include "Data/CallsignWeaponDefinition.h"
+#include "Support/CallsignSupportSystem.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/StaticMeshActor.h"
@@ -160,6 +162,13 @@ void ACallsignExfilGameMode::SpawnPhase1Demo()
 			const FVector Loc = Origin + FVector((i - 1) * Spacing, (j - 1) * Spacing, -90.f);
 			ACallsignNode* Node = World->SpawnActor<ACallsignNode>(NodeClass, Loc, FRotator::ZeroRotator, Params);
 			Grid[i][j] = Node;
+			// ADR-004 §3.2: every outer node is destroyable so OrbitalBarrage
+			// has something to bite on. The center stays non-destroyable so
+			// the player's spawn cell can't disappear under them.
+			if (Node && !(i == 1 && j == 1))
+			{
+				Node->bDestroyable = true;
+			}
 		}
 	}
 
@@ -225,6 +234,67 @@ void ACallsignExfilGameMode::SpawnPhase1Demo()
 	// Phase 2 demo: surface the lifecycle event to the on-screen message log
 	// once after both pawns are equipped (per-pawn equip logs stay in UE_LOG only).
 	CallsignMsg::PushSystem(World, TEXT("作戦区域に降下。装備を確認してください。"));
+
+	// ADR-004 §3.1 / §11: register the three Phase 3 support defs so the
+	// player keys 5/6/7 work without Editor asset authoring.
+	if (bAutoInitPhase3SupportDemo)
+	{
+		InitPhase3SupportDemo();
+	}
+}
+
+void ACallsignExfilGameMode::InitPhase3SupportDemo()
+{
+	UWorld* World = GetWorld();
+	UCallsignSupportSystem* SupportSys = World ? World->GetSubsystem<UCallsignSupportSystem>() : nullptr;
+	if (!SupportSys)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[GameMode] Phase3Demo: no UCallsignSupportSystem subsystem"));
+		return;
+	}
+
+	// PrecisionStrike: short delay, narrow lethal radius, no terrain damage.
+	{
+		UCallsignSupportDefinition* Def = NewObject<UCallsignSupportDefinition>(this);
+		Def->SupportType = ECallsignSupportType::PrecisionStrike;
+		Def->DelayTurns = 2;
+		Def->RadiusCm = 200.f;
+		Def->Damage = 40;
+		Def->TerrainDestructionRadiusCm = 0.f;
+		Def->bAllowsFriendlyFire = true;
+		Def->bDealsDamage = true;
+		SupportSys->RegisterDefinition(ECallsignSupportType::PrecisionStrike, Def);
+	}
+
+	// SupplyPod: medium delay, no damage. ADR-004 §13 OQ-4: bDealsDamage=
+	// false makes it a "wait then nothing visible" demo for the queue/UI
+	// path. Phase 4 will hang actual supply effects off the resolved event.
+	{
+		UCallsignSupportDefinition* Def = NewObject<UCallsignSupportDefinition>(this);
+		Def->SupportType = ECallsignSupportType::SupplyPod;
+		Def->DelayTurns = 2;
+		Def->RadiusCm = 150.f;
+		Def->Damage = 0;
+		Def->TerrainDestructionRadiusCm = 0.f;
+		Def->bAllowsFriendlyFire = true;
+		Def->bDealsDamage = false;
+		SupportSys->RegisterDefinition(ECallsignSupportType::SupplyPod, Def);
+	}
+
+	// OrbitalBarrage: long delay, wide AoE, terrain destruction.
+	{
+		UCallsignSupportDefinition* Def = NewObject<UCallsignSupportDefinition>(this);
+		Def->SupportType = ECallsignSupportType::OrbitalBarrage;
+		Def->DelayTurns = 4;
+		Def->RadiusCm = 500.f;
+		Def->Damage = 20;
+		Def->TerrainDestructionRadiusCm = 300.f;
+		Def->bAllowsFriendlyFire = true;
+		Def->bDealsDamage = true;
+		SupportSys->RegisterDefinition(ECallsignSupportType::OrbitalBarrage, Def);
+	}
+
+	UE_LOG(LogTemp, Display, TEXT("[GameMode] Phase3Demo: 3 support definitions registered"));
 }
 
 void ACallsignExfilGameMode::SpawnEnvironmentDressing(const FVector& Origin)
