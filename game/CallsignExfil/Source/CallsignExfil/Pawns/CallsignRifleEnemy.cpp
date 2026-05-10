@@ -4,6 +4,7 @@
 #include "CallsignRifleEnemyController.h"
 #include "Inventory/CallsignInventoryComponent.h"
 #include "Node/CallsignNode.h"
+#include "Node/CallsignNodeMoverComponent.h"
 #include "Node/CallsignNodeMovement.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -33,6 +34,10 @@ ACallsignRifleEnemy::ACallsignRifleEnemy()
         // Phase 2 enemies use bUsesAmmoPool=false data so combat does not draw from a pool;
         // the slot still holds a weapon definition for damage/range purposes (ADR-003 §13).
         Inventory = CreateDefaultSubobject<UCallsignInventoryComponent>(TEXT("Inventory"));
+
+        // Smooth node-to-node interpolation. CallsignNodeMovement::TeleportPawnToNode
+        // detects this component and replaces instant SetActorLocation with a 0.35s lerp.
+        NodeMover = CreateDefaultSubobject<UCallsignNodeMoverComponent>(TEXT("NodeMover"));
 }
 
 ACallsignNode* ACallsignRifleEnemy::GetCurrentNode_Implementation() const

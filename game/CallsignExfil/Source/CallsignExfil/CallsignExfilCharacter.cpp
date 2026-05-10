@@ -12,6 +12,7 @@
 #include "InputActionValue.h"
 #include "CallsignExfil.h"
 #include "Inventory/CallsignInventoryComponent.h"
+#include "Node/CallsignNodeMoverComponent.h"
 #include "Node/CallsignNode.h"
 #include "Node/CallsignNodeMovement.h"
 #include "Node/CallsignNodeOccupant.h"
@@ -56,6 +57,10 @@ ACallsignExfilCharacter::ACallsignExfilCharacter()
 
 	// Phase 2 (ADR-003 §4.1): every pawn owns an inventory component.
 	Inventory = CreateDefaultSubobject<UCallsignInventoryComponent>(TEXT("Inventory"));
+
+	// Smooth node-to-node interpolation. Picked up by CallsignNodeMovement::TeleportPawnToNode
+	// to replace the instant SetActorLocation hop with a 0.35s lerp.
+	NodeMover = CreateDefaultSubobject<UCallsignNodeMoverComponent>(TEXT("NodeMover"));
 
 	// Note: The skeletal mesh and anim blueprint references on the Mesh component (inherited from Character)
 	// are set in the derived blueprint asset named ThirdPersonCharacter (to avoid direct content references in C++)
