@@ -3,6 +3,7 @@
 #include "CallsignRifleEnemy.h"
 #include "CallsignRifleEnemyController.h"
 #include "Node/CallsignNode.h"
+#include "Node/CallsignNodeMovement.h"
 
 ACallsignRifleEnemy::ACallsignRifleEnemy()
 {
@@ -19,31 +20,7 @@ ACallsignNode* ACallsignRifleEnemy::GetCurrentNode_Implementation() const
 
 void ACallsignRifleEnemy::MoveToNode_Implementation(ACallsignNode* TargetNode)
 {
-        // Reject move into a node already held by another actor.
-        if (TargetNode && TargetNode->Occupant.IsValid() && TargetNode->Occupant.Get() != this)
-        {
-                UE_LOG(LogTemp, Warning, TEXT("[Pawn] %s rejected MoveToNode -> %s (occupied by %s)"),
-                        *GetNameSafe(this), *GetNameSafe(TargetNode), *GetNameSafe(TargetNode->Occupant.Get()));
-                return;
-        }
-
-        // Detach from old node's occupancy.
-        if (CurrentNode && CurrentNode->Occupant.Get() == this)
-        {
-                CurrentNode->Occupant = nullptr;
-        }
-
-        CurrentNode = TargetNode;
-
-        if (TargetNode)
-        {
-                // Phase 1: simple teleport. TODO Phase 2: smooth interpolation/anim.
-                SetActorLocation(TargetNode->GetActorLocation());
-                TargetNode->Occupant = this;
-        }
-
-        UE_LOG(LogTemp, Display, TEXT("[Pawn] %s MoveToNode -> %s"),
-                *GetNameSafe(this), *GetNameSafe(TargetNode));
+        CallsignNodeMovement::TeleportPawnToNode(this, CurrentNode, TargetNode);
 }
 
 void ACallsignRifleEnemy::BeginTurn_Implementation()
