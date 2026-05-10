@@ -14,6 +14,7 @@
 #include "Data/CallsignTypes.h"
 #include "Engine/World.h"
 #include "Kismet/GameplayStatics.h"
+#include "TimerManager.h"
 
 void ACallsignRifleEnemyController::OnPossess(APawn* InPawn)
 {
@@ -34,6 +35,29 @@ void ACallsignRifleEnemyController::OnPossess(APawn* InPawn)
 }
 
 void ACallsignRifleEnemyController::BeginTurn_Implementation()
+{
+        // Don't act immediately. Schedule the action so there is a visible beat
+        // between the player ending their turn and the enemy reacting; tracer +
+        // hit sphere + message log all align with that beat.
+        UWorld* World = GetWorld();
+        if (!World)
+        {
+                PerformQueuedAction();
+                return;
+        }
+        if (ActionDelay <= 0.f)
+        {
+                PerformQueuedAction();
+                return;
+        }
+        UE_LOG(LogTemp, Display, TEXT("[EnemyAI] BeginTurn: deferring action by %.2fs"), ActionDelay);
+        World->GetTimerManager().SetTimer(
+                ActionTimerHandle, this,
+                &ACallsignRifleEnemyController::PerformQueuedAction,
+                ActionDelay, /*bLoop*/ false);
+}
+
+void ACallsignRifleEnemyController::PerformQueuedAction()
 {
         ACallsignRifleEnemy* Enemy = Cast<ACallsignRifleEnemy>(GetPawn());
         UWorld* World = GetWorld();

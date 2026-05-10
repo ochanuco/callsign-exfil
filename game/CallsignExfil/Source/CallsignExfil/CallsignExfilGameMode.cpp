@@ -54,19 +54,31 @@ void ACallsignExfilGameMode::BeginPlay()
 		return;
 	}
 
-	// Discover all turn participants in the level (player pawn, enemies, etc.).
+	// Register the player FIRST so the round always starts on the player's turn.
+	// (GetAllActorsWithInterface order is engine-defined and often returns enemies
+	// first, which made enemies act before the player and felt reactive.)
+	APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(this, 0);
+	int32 RegisteredCount = 0;
+	if (PlayerPawn && PlayerPawn->GetClass()->ImplementsInterface(UCallsignTurnParticipant::StaticClass()))
+	{
+		TurnSys->RegisterParticipant(PlayerPawn);
+		++RegisteredCount;
+	}
+
+	// Then register everyone else (enemies, future allies, etc.). Skip the
+	// player which we already added.
 	TArray<AActor*> Participants;
 	UGameplayStatics::GetAllActorsWithInterface(this, UCallsignTurnParticipant::StaticClass(), Participants);
-
 	for (AActor* Actor : Participants)
 	{
-		if (Actor)
+		if (Actor && Actor != PlayerPawn)
 		{
 			TurnSys->RegisterParticipant(Actor);
+			++RegisteredCount;
 		}
 	}
 
-	UE_LOG(LogTemp, Display, TEXT("[GameMode] Registered %d participants"), Participants.Num());
+	UE_LOG(LogTemp, Display, TEXT("[GameMode] Registered %d participants (player first)"), RegisteredCount);
 
 	TurnSys->BeginRound();
 
