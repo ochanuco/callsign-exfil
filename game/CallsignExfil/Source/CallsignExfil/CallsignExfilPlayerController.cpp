@@ -14,6 +14,7 @@
 #include "Data/CallsignTypes.h"
 #include "Data/CallsignWeaponDefinition.h"
 #include "Data/CallsignWeaponTypes.h"
+#include "HUD/CallsignMessageBus.h"
 #include "Inventory/CallsignInventoryComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Node/CallsignNode.h"
@@ -90,6 +91,7 @@ void ACallsignExfilPlayerController::HandleTurnBegin(AActor* Who)
 	if (Who != nullptr && Who == GetPawn())
 	{
 		SetMode(ECallsignControllerMode::NodeSelect);
+		CallsignMsg::PushPlayer(GetWorld(), TEXT("あなたの番です。"));
 	}
 }
 
@@ -286,6 +288,7 @@ bool ACallsignExfilPlayerController::TryShootAtActor(AActor* Target)
 	if (!IsMyTurn())
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[PC] TryShootAtActor: not my turn"));
+		CallsignMsg::PushPlayer(GetWorld(), TEXT("撃てない。"));
 		return false;
 	}
 
@@ -293,12 +296,14 @@ bool ACallsignExfilPlayerController::TryShootAtActor(AActor* Target)
 	if (Target == nullptr || Target == P)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[PC] TryShootAtActor: invalid target (null or self)"));
+		CallsignMsg::PushPlayer(GetWorld(), TEXT("撃てない。"));
 		return false;
 	}
 
 	if (DefaultWeapon == nullptr)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[PC] TryShootAtActor: no DefaultWeapon set"));
+		CallsignMsg::PushPlayer(GetWorld(), TEXT("撃てない。"));
 		return false;
 	}
 
@@ -307,6 +312,7 @@ bool ACallsignExfilPlayerController::TryShootAtActor(AActor* Target)
 	if (!Resolver)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[PC] TryShootAtActor: no CombatResolver subsystem"));
+		CallsignMsg::PushPlayer(GetWorld(), TEXT("撃てない。"));
 		return false;
 	}
 
@@ -335,6 +341,16 @@ bool ACallsignExfilPlayerController::TryShootAtActor(AActor* Target)
 
 	UE_LOG(LogTemp, Display, TEXT("[PC] TryShootAtActor -> hit=%d damage=%.2f"),
 		Result.bHit ? 1 : 0, Result.DamageApplied);
+
+	if (Result.bHit)
+	{
+		CallsignMsg::PushPlayer(GetWorld(), FString::Printf(
+			TEXT("敵を撃った。命中、%.0f ダメージ。"), Result.DamageApplied));
+	}
+	else
+	{
+		CallsignMsg::PushPlayer(GetWorld(), TEXT("敵を撃った。外れた。"));
+	}
 
 	// Action consumed: end the turn whether hit or miss.
 	EndTurn();
@@ -369,11 +385,23 @@ bool ACallsignExfilPlayerController::TryReload()
 	{
 		// ADR-003 §7: rescue / empty pool / full magazine -> no-op, no turn cost.
 		UE_LOG(LogTemp, Display, TEXT("[PC] TryReload: no-op (rescue/empty pool/full mag)"));
+		CallsignMsg::PushPlayer(GetWorld(), TEXT("リロード不要 / 弾切れ。"));
 		return false;
 	}
 
 	UE_LOG(LogTemp, Display, TEXT("[PC] TryReload: tactical=%d discarded=%d loaded=%d"),
 		R.bWasTactical ? 1 : 0, R.DiscardedRounds, R.LoadedRounds);
+
+	if (R.bWasTactical)
+	{
+		CallsignMsg::PushPlayer(GetWorld(), FString::Printf(
+			TEXT("リロード (装填 %d、廃棄 %d)。"), R.LoadedRounds, R.DiscardedRounds));
+	}
+	else
+	{
+		CallsignMsg::PushPlayer(GetWorld(), FString::Printf(
+			TEXT("リロード (装填 %d)。"), R.LoadedRounds));
+	}
 
 	EndTurn();
 	return true;
@@ -397,6 +425,7 @@ void ACallsignExfilPlayerController::EndTurn()
 
 	TurnSys->EndCurrentTurn();
 	UE_LOG(LogTemp, Display, TEXT("[PC] EndTurn"));
+	CallsignMsg::PushPlayer(World, TEXT("ターン終了。"));
 }
 
 void ACallsignExfilPlayerController::CsxShoot()
