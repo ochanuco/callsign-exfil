@@ -58,12 +58,16 @@ void ACallsignRifleEnemy::BeginPlay()
 float ACallsignRifleEnemy::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent,
         AController* EventInstigator, AActor* DamageCauser)
 {
-        const float Applied = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
-        if (HealthComp && Applied > 0.f)
+        // Return what HealthComp ACTUALLY applied, not what Super accepted —
+        // otherwise dead targets / round-down / over-cap clamp desync the
+        // caller's view of damage from real HP state.
+        if (!HealthComp || !HealthComp->IsAlive() || DamageAmount <= 0.f)
         {
-                HealthComp->ApplyDamage(FMath::FloorToInt32(Applied), DamageCauser);
+                return 0.f;
         }
-        return Applied;
+        const float Requested = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
+        const int32 Applied = HealthComp->ApplyDamage(FMath::FloorToInt32(Requested), DamageCauser);
+        return static_cast<float>(Applied);
 }
 
 void ACallsignRifleEnemy::HandleDied(UCallsignHealthComponent* /*Comp*/)
@@ -75,6 +79,12 @@ void ACallsignRifleEnemy::HandleDied(UCallsignHealthComponent* /*Comp*/)
         if (UCapsuleComponent* Cap = GetCapsuleComponent())
         {
                 Cap->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+        }
+        // Vacate node occupancy so future moves into this cell aren't rejected
+        // by IsOccupied() seeing a still-live WeakObjectPtr to a hidden corpse.
+        if (CurrentNode && CurrentNode->Occupant.Get() == this)
+        {
+                CurrentNode->Occupant = nullptr;
         }
         // Mark turn as finished so the AI controller doesn't stall the round
         // if death lands during this enemy's turn.

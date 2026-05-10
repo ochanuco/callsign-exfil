@@ -195,12 +195,16 @@ bool ACallsignExfilCharacter::IsTurnFinished_Implementation() const
 float ACallsignExfilCharacter::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent,
 	AController* EventInstigator, AActor* DamageCauser)
 {
-	const float Applied = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
-	if (HealthComp && Applied > 0.f)
+	// Return what HealthComp ACTUALLY applied, not what Super accepted.
+	// Otherwise dead targets / sub-1.0 damage round-down / over-cap clamp
+	// all desync the caller's view from real HP state.
+	if (!HealthComp || !HealthComp->IsAlive() || DamageAmount <= 0.f)
 	{
-		HealthComp->ApplyDamage(FMath::FloorToInt32(Applied), DamageCauser);
+		return 0.f;
 	}
-	return Applied;
+	const float Requested = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
+	const int32 Applied = HealthComp->ApplyDamage(FMath::FloorToInt32(Requested), DamageCauser);
+	return static_cast<float>(Applied);
 }
 
 void ACallsignExfilCharacter::HandleDied(UCallsignHealthComponent* /*Comp*/)
@@ -212,6 +216,13 @@ void ACallsignExfilCharacter::HandleDied(UCallsignHealthComponent* /*Comp*/)
 	if (UCapsuleComponent* Cap = GetCapsuleComponent())
 	{
 		Cap->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	}
+	// Vacate node occupancy so pathing / IsOccupied don't keep the cell
+	// blocked behind a corpse. Mirrors the cleanup CallsignNodeMovement
+	// does when a live pawn moves out.
+	if (CurrentNode && CurrentNode->Occupant.Get() == this)
+	{
+		CurrentNode->Occupant = nullptr;
 	}
 	bTurnFinished = true;
 }
