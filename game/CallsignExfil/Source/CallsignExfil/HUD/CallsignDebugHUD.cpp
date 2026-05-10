@@ -19,13 +19,14 @@ void ACallsignDebugHUD::DrawHUD()
 {
         Super::DrawHUD();
 
-        if (!bShowTurnInfo && !bShowLoSPreview)
+        // Debug-only overlay: skip outside PIE so it cannot leak into Standalone or Shipping.
+        UWorld* World = GetWorld();
+        if (!World || World->WorldType != EWorldType::PIE)
         {
                 return;
         }
 
-        UWorld* World = GetWorld();
-        if (!World)
+        if (!bShowTurnInfo && !bShowLoSPreview)
         {
                 return;
         }
