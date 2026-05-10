@@ -2,6 +2,11 @@
 
 #include "CallsignWeaponInstanceObject.h"
 #include "Data/CallsignWeaponDefinition.h"
+#include "Engine/World.h"
+#include "GameFramework/Pawn.h"
+#include "HUD/CallsignMessageBus.h"
+#include "Inventory/CallsignInventoryComponent.h"
+#include "Kismet/GameplayStatics.h"
 
 void UCallsignWeaponInstanceObject::InitializeFromDefinition(UCallsignWeaponDefinition* Def)
 {
@@ -79,6 +84,39 @@ bool UCallsignWeaponInstanceObject::ConsumeShot()
                         State.DurabilityCurrent = 0;
                         UE_LOG(LogTemp, Display, TEXT("[Weapon] OnWeaponBroken broadcast"));
                         OnWeaponBroken.Broadcast(this);
+
+                        // Player-facing broken notification. Walk Outer -> InventoryComponent
+                        // -> Pawn to discriminate "あなたの銃" vs "敵の銃". UObject-derived
+                        // weapons cannot rely on a direct GetWorld(), so resolve the world
+                        // via the owning pawn (registered with the world) when possible.
+                        bool bBelongsToPlayer = false;
+                        bool bOwnerKnown = false;
+                        UWorld* World = nullptr;
+                        if (UCallsignInventoryComponent* OwningInv = GetTypedOuter<UCallsignInventoryComponent>())
+                        {
+                                if (APawn* OwningPawn = Cast<APawn>(OwningInv->GetOwner()))
+                                {
+                                        bOwnerKnown = true;
+                                        World = OwningPawn->GetWorld();
+                                        bBelongsToPlayer = (OwningPawn == UGameplayStatics::GetPlayerPawn(OwningPawn, 0));
+                                }
+                        }
+
+                        if (World)
+                        {
+                                if (!bOwnerKnown)
+                                {
+                                        CallsignMsg::PushSystem(World, TEXT("武器が破損した!"));
+                                }
+                                else if (bBelongsToPlayer)
+                                {
+                                        CallsignMsg::PushSystem(World, TEXT("あなたの銃が壊れた!"));
+                                }
+                                else
+                                {
+                                        CallsignMsg::PushSystem(World, TEXT("敵の銃が壊れた!"));
+                                }
+                        }
                 }
         }
 
