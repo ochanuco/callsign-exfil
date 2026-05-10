@@ -52,6 +52,13 @@ void UCallsignTurnSystem::UnregisterParticipant(AActor* Participant)
 
 void UCallsignTurnSystem::BeginRound()
 {
+        // Drop entries that have been GC'd or destroyed since registration so the
+        // first slot is guaranteed to be a live participant before broadcast.
+        TurnQueue.RemoveAll([](const TWeakObjectPtr<AActor>& Entry)
+        {
+                return !Entry.IsValid();
+        });
+
         if (TurnQueue.Num() == 0)
         {
                 UE_LOG(LogTemp, Warning, TEXT("[Turn] BeginRound called with empty queue; ignoring"));

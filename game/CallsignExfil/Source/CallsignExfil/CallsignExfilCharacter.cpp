@@ -142,6 +142,14 @@ ACallsignNode* ACallsignExfilCharacter::GetCurrentNode_Implementation() const
 
 void ACallsignExfilCharacter::MoveToNode_Implementation(ACallsignNode* TargetNode)
 {
+	// Reject move into a node already held by another actor.
+	if (TargetNode && TargetNode->Occupant.IsValid() && TargetNode->Occupant.Get() != this)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Pawn] %s rejected MoveToNode -> %s (occupied by %s)"),
+			*GetNameSafe(this), *GetNameSafe(TargetNode), *GetNameSafe(TargetNode->Occupant.Get()));
+		return;
+	}
+
 	// Detach from old node's occupancy.
 	if (CurrentNode && CurrentNode->Occupant.Get() == this)
 	{
