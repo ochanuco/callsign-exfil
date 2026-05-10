@@ -59,6 +59,13 @@ public:
         UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Callsign|HUD")
         bool bShowTargetingPreview = true;
 
+        /**
+         *  ADR-004 §8: toggle the support-request preview overlay
+         *  (pending list text + DebugSphere blast radius).
+         */
+        UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Callsign|HUD")
+        bool bShowSupportPreview = true;
+
 protected:
 
         virtual void BeginPlay() override;

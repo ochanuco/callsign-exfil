@@ -11,6 +11,7 @@ class UInputMappingContext;
 class UUserWidget;
 class UCallsignWeaponDefinition;
 class ACallsignNode;
+enum class ECallsignSupportType : uint8;
 
 /**
  *  Controller-side mode that mirrors ECallsignCameraMode but is owned by the
@@ -157,6 +158,22 @@ public:
 	/** Console: dump inventory + turn state to the log (no game effect). */
 	UFUNCTION(Exec)
 	void CsxStatus();
+
+	/**
+	 *  ADR-004 §4.3: submit a support request targeting AtNode (typically
+	 *  the node currently under the cursor). On success the request is
+	 *  enqueued in UCallsignSupportSystem and the player's turn ends.
+	 *  Returns true when the request was accepted.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Callsign|Support")
+	bool TryRequestSupport(ECallsignSupportType Type, ACallsignNode* AtNode);
+
+	/** Phase 3 demo binding: PrecisionStrike at the cursor node (key 5). */
+	void CsxSupportPrecisionStrike();
+	/** Phase 3 demo binding: SupplyPod at the cursor node (key 6). */
+	void CsxSupportSupplyPod();
+	/** Phase 3 demo binding: OrbitalBarrage at the cursor node (key 7). */
+	void CsxSupportOrbitalBarrage();
 
 	/** Mouse cursor → node click handler. Invokes TryMoveToNode if the hit node is adjacent + free. */
 	void HandleLeftClickToMoveNode();

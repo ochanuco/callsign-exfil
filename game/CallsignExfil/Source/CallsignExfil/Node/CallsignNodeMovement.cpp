@@ -15,6 +15,17 @@ namespace CallsignNodeMovement
                         return false;
                 }
 
+                // ADR-004 §9.2: reject move into a destroyed node. Done here
+                // (single movement window) instead of in each pawn class so a
+                // future pawn type can't accidentally walk onto a node that
+                // was just blown up by an OrbitalBarrage.
+                if (TargetNode && TargetNode->bIsDestroyed)
+                {
+                        UE_LOG(LogTemp, Warning, TEXT("[Pawn] %s rejected MoveToNode -> %s (destroyed)"),
+                                *GetNameSafe(Pawn), *GetNameSafe(TargetNode));
+                        return false;
+                }
+
                 // Reject move into a node already held by another actor.
                 if (TargetNode && TargetNode->Occupant.IsValid() && TargetNode->Occupant.Get() != Pawn)
                 {

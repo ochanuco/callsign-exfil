@@ -42,6 +42,25 @@ bool ACallsignNode::IsOccupied() const
         return Occupant.IsValid();
 }
 
+void ACallsignNode::MarkDestroyed()
+{
+        if (bIsDestroyed)
+        {
+                return;
+        }
+        bIsDestroyed = true;
+        // ADR-004 §9.2 says destroyed-node visuals are a BP concern. For the
+        // Phase 3 PIE demo without a BP override, hide the cell ourselves so
+        // destruction is observable without authoring extra assets. A BP
+        // listener can override by re-enabling visibility from OnNodeDestroyed.
+        if (Visual)
+        {
+                Visual->SetVisibility(false);
+                Visual->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+        }
+        OnNodeDestroyed.Broadcast(this);
+}
+
 bool ACallsignNode::IsAdjacent(const ACallsignNode* Other) const
 {
         if (!Other)
