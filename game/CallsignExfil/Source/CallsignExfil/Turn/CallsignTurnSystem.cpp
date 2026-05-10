@@ -1,6 +1,29 @@
 // Copyright (c) ochanuco 2026. Licensed under MIT.
 
 #include "CallsignTurnSystem.h"
+#include "CallsignTurnParticipant.h"
+
+namespace
+{
+        /** Dispatch BeginTurn to the participant if it implements the interface. */
+        static void DispatchBeginTurn(AActor* Participant)
+        {
+                if (!Participant)
+                {
+                        return;
+                }
+                if (Participant->GetClass()->ImplementsInterface(UCallsignTurnParticipant::StaticClass()))
+                {
+                        UE_LOG(LogTemp, Display, TEXT("[Turn] Dispatching BeginTurn to %s"), *GetNameSafe(Participant));
+                        ICallsignTurnParticipant::Execute_BeginTurn(Participant);
+                }
+                else
+                {
+                        UE_LOG(LogTemp, Warning, TEXT("[Turn] Participant %s does not implement ICallsignTurnParticipant; skipping dispatch"),
+                                *GetNameSafe(Participant));
+                }
+        }
+}
 
 void UCallsignTurnSystem::Initialize(FSubsystemCollectionBase& Collection)
 {
@@ -78,6 +101,7 @@ void UCallsignTurnSystem::BeginRound()
         if (AActor* Current = GetCurrentParticipant())
         {
                 OnTurnBegin.Broadcast(Current);
+                DispatchBeginTurn(Current);
         }
 }
 
@@ -120,6 +144,7 @@ void UCallsignTurnSystem::EndCurrentTurn()
         if (NextActor)
         {
                 OnTurnBegin.Broadcast(NextActor);
+                DispatchBeginTurn(NextActor);
         }
 
         UE_LOG(LogTemp, Display, TEXT("[Turn] EndCurrentTurn -> next=%s"), *GetNameSafe(GetCurrentParticipant()));
@@ -145,5 +170,6 @@ void UCallsignTurnSystem::BroadcastBeginCurrent()
         if (AActor* Current = GetCurrentParticipant())
         {
                 OnTurnBegin.Broadcast(Current);
+                DispatchBeginTurn(Current);
         }
 }
