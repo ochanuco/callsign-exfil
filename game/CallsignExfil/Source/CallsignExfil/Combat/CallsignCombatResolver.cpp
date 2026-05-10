@@ -5,7 +5,9 @@
 #include "Data/CallsignWeaponDefinition.h"
 #include "Inventory/CallsignInventoryComponent.h"
 #include "Weapon/CallsignWeaponInstanceObject.h"
+#include "DrawDebugHelpers.h"
 #include "Engine/World.h"
+#include "GameFramework/Pawn.h"
 #include "Kismet/GameplayStatics.h"
 
 FCallsignShotResult UCallsignCombatResolver::ResolveShot(const FCallsignShotRequest& Request)
@@ -118,6 +120,32 @@ FCallsignShotResult UCallsignCombatResolver::ResolveShot(const FCallsignShotRequ
         {
                 UE_LOG(LogTemp, Display, TEXT("[Combat] ResolveShot Phase2 hit=%d damage=%.2f"),
                         Result.bHit ? 1 : 0, Result.DamageApplied);
+        }
+
+        // Visual feedback: draw a tracer line in the world for ~0.6s so the
+        // shot is observable beyond the message log. Player shots = cyan,
+        // enemy shots = red. Misses use a duller tint.
+        if (World)
+        {
+                const APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(this, 0);
+                const bool bIsPlayerShot = (Request.Instigator.Get() == PlayerPawn);
+                FColor TracerColor;
+                if (bIsPlayerShot)
+                {
+                        TracerColor = Result.bHit ? FColor(80, 200, 255) : FColor(120, 200, 220);
+                }
+                else
+                {
+                        TracerColor = Result.bHit ? FColor(255, 80, 80) : FColor(220, 140, 140);
+                }
+                DrawDebugLine(World, Request.From, Request.To, TracerColor,
+                        /*bPersistent*/ false, /*Lifetime*/ 0.6f, /*DepthPriority*/ 0, /*Thickness*/ 4.f);
+                if (Result.bHit)
+                {
+                        // Small impact marker at the destination.
+                        DrawDebugSphere(World, Request.To, /*Radius*/ 30.f, /*Segments*/ 12,
+                                TracerColor, /*bPersistent*/ false, /*Lifetime*/ 0.6f, /*DepthPriority*/ 0, /*Thickness*/ 2.f);
+                }
         }
 
         return Result;
