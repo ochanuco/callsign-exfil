@@ -113,14 +113,29 @@ void ACallsignDebugHUD::DrawHUD()
                                 const float LineStep = 44.f;             // ~22 * TextScale
                                 const float BottomMargin = 60.f;
                                 const float FadeWindow = 1.5f;
+                                const float PanelPadding = 12.f;
+                                const float TextLeftInset = 16.f;
+                                const FLinearColor PanelBgColor(0.f, 0.f, 0.f, 0.65f);    // semi-transparent black
+                                const FLinearColor PanelBorderColor(0.4f, 0.4f, 0.4f, 0.8f); // subtle gray frame
 
                                 // Newest entries are at the END of the array. Render newest
                                 // at the bottom and walk older entries upward.
                                 const float ClipX = Canvas->ClipX;
                                 const float ClipY = Canvas->ClipY;
                                 const float X = ClipX - PanelWidth;
-
                                 const int32 Count = Active.Num();
+
+                                // Background panel: sized to the message stack so it grows/shrinks
+                                // as messages come and go. Drawn first so the text renders on top.
+                                const float PanelHeight = (Count * LineStep) + (2.f * PanelPadding);
+                                const float PanelX = X - TextLeftInset - PanelPadding;
+                                const float PanelY = ClipY - BottomMargin - ((Count - 1) * LineStep) - PanelPadding;
+                                const float PanelW = PanelWidth + (2.f * PanelPadding);
+                                DrawRect(PanelBgColor, PanelX, PanelY, PanelW, PanelHeight);
+                                // Top + bottom border lines for a "window" feel.
+                                DrawLine(PanelX, PanelY, PanelX + PanelW, PanelY, PanelBorderColor, 1.5f);
+                                DrawLine(PanelX, PanelY + PanelHeight, PanelX + PanelW, PanelY + PanelHeight, PanelBorderColor, 1.5f);
+
                                 for (int32 i = 0; i < Count; ++i)
                                 {
                                         const FCallsignMessage& Msg = Active[Count - 1 - i];
