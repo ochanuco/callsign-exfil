@@ -84,26 +84,29 @@ namespace CallsignMsg
                 }
         }
 
+        // Lifetime = -1 means messages persist until evicted by MaxLines (oldest-first).
+        // Roguelike message logs traditionally don't time out — players want to scroll back.
+
         void PushInfo(UWorld* World, const FString& Text)
         {
-                Push(World, Text, FLinearColor::White, 8.f);
+                Push(World, Text, FLinearColor::White, -1.f);
         }
 
         void PushPlayer(UWorld* World, const FString& Text)
         {
                 // Light cyan tint for player-attributed messages.
-                Push(World, Text, FLinearColor(0.6f, 0.9f, 1.0f, 1.0f), 8.f);
+                Push(World, Text, FLinearColor(0.6f, 0.9f, 1.0f, 1.0f), -1.f);
         }
 
         void PushEnemy(UWorld* World, const FString& Text)
         {
                 // Light red tint for enemy-attributed messages.
-                Push(World, Text, FLinearColor(1.0f, 0.55f, 0.55f, 1.0f), 8.f);
+                Push(World, Text, FLinearColor(1.0f, 0.55f, 0.55f, 1.0f), -1.f);
         }
 
         void PushSystem(UWorld* World, const FString& Text)
         {
-                // Yellow, longer lifetime for lifecycle / system events.
-                Push(World, Text, FLinearColor(1.0f, 0.95f, 0.3f, 1.0f), 12.f);
+                // Yellow tint for lifecycle / system events.
+                Push(World, Text, FLinearColor(1.0f, 0.95f, 0.3f, 1.0f), -1.f);
         }
 }

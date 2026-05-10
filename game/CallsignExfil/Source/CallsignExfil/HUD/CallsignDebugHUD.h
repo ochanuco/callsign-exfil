@@ -51,6 +51,10 @@ public:
         UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Callsign|HUD")
         bool bShowMessageLog = true;
 
+        /** Toggle the top-right key-binding help panel. */
+        UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Callsign|HUD")
+        bool bShowKeyHelp = true;
+
 protected:
 
         virtual void BeginPlay() override;
