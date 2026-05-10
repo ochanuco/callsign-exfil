@@ -85,6 +85,19 @@ void ACallsignRifleEnemyController::PerformQueuedAction()
                 return;
         }
 
+        // Issue #53 sub-2: re-check that this controller is still the current
+        // turn participant. The 0.6s ActionDelay timer can fire after another
+        // path (round wrap, player force-end, future support effects) has
+        // already advanced the turn; running AI logic here would call
+        // EndCurrentTurn against a participant that's no longer current and
+        // double-advance the queue.
+        if (TurnSystem && TurnSystem->GetCurrentParticipant() != Enemy)
+        {
+                UE_LOG(LogTemp, Warning, TEXT("[EnemyAI] PerformQueuedAction: not my turn anymore (current=%s); skipping"),
+                        *GetNameSafe(TurnSystem->GetCurrentParticipant()));
+                return;
+        }
+
         // Phase 2 demo (ADR-003 §4.3): try to shoot the player first. When LoS is clear and
         // the enemy has a usable (non-broken) weapon, route a shot through the CombatResolver
         // (which handles ammo / magazine / durability / broken via Inventory). On a successful

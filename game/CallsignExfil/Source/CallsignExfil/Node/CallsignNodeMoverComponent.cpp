@@ -90,12 +90,24 @@ void UCallsignNodeMoverComponent::TickComponent(float DeltaTime, ELevelTick Tick
                 ToTargetH.Z = 0.f; // walk on horizontal plane; CMC handles vertical
                 const float DistH = ToTargetH.Size();
 
-                // Done when close enough OR the timeout fires (prevents a stuck
-                // pawn if CMC ends up blocked against geometry).
-                if (DistH < ArriveThreshold || Elapsed >= WalkTimeout)
+                // Issue #50: distinguish arrival vs timeout. Arrival snaps clean
+                // to the node; timeout leaves the pawn where CMC ended up so the
+                // failure isn't masked by a fake snap. Either way we stop ticking
+                // and restore CMC speed so the round can advance.
+                const bool bArrived = DistH < ArriveThreshold;
+                const bool bTimedOut = Elapsed >= WalkTimeout;
+
+                if (bArrived)
                 {
                         // Snap (with sweep) so the final pose is exactly on the node.
                         Char->SetActorLocation(EndLoc, /*bSweep*/ true);
+                        StopMovingAndRestore();
+                        return;
+                }
+                if (bTimedOut)
+                {
+                        UE_LOG(LogTemp, Warning, TEXT("[NodeMover] %s timed out at %.0fcm from target; leaving in place"),
+                                *GetNameSafe(Char), DistH);
                         StopMovingAndRestore();
                         return;
                 }
