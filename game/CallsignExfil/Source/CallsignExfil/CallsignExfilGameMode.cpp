@@ -12,7 +12,11 @@
 #include "Inventory/CallsignInventoryComponent.h"
 #include "Weapon/CallsignWeaponInstanceObject.h"
 #include "Data/CallsignWeaponDefinition.h"
+#include "Components/StaticMeshComponent.h"
+#include "Engine/StaticMesh.h"
+#include "Engine/StaticMeshActor.h"
 #include "Engine/World.h"
+#include "Materials/MaterialInterface.h"
 #include "TimerManager.h"
 #include "Kismet/GameplayStatics.h"
 
@@ -176,6 +180,14 @@ void ACallsignExfilGameMode::SpawnPhase1Demo()
 		}
 	}
 
+	// Drop the voxel floor + cover dressing AFTER nodes are spawned so the
+	// dressing pass can read each node's actor location and skip the floor
+	// voxel under it (the node's 1m^3 Visual cube stands in for that cell).
+	if (bSpawnEnvironmentDressing)
+	{
+		SpawnEnvironmentDressing(Origin);
+	}
+
 	// Place the player on the center node via interface dispatch.
 	ACallsignNode* Center = Grid[1][1];
 	if (Center && PlayerPawn->GetClass()->ImplementsInterface(UCallsignNodeOccupant::StaticClass()))
@@ -213,6 +225,160 @@ void ACallsignExfilGameMode::SpawnPhase1Demo()
 	// Phase 2 demo: surface the lifecycle event to the on-screen message log
 	// once after both pawns are equipped (per-pawn equip logs stay in UE_LOG only).
 	CallsignMsg::PushSystem(World, TEXT("作戦区域に降下。装備を確認してください。"));
+}
+
+void ACallsignExfilGameMode::SpawnEnvironmentDressing(const FVector& Origin)
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	// Engine stock primitives — always available, no asset authoring required.
+	UStaticMesh* CubeMesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube"));
+	if (!CubeMesh)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[GameMode] EnvironmentDressing: /Engine/BasicShapes/Cube not found, skipping"));
+		return;
+	}
+	UMaterialInterface* GridMat = LoadObject<UMaterialInterface>(
+		nullptr, TEXT("/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial"));
+
+	FActorSpawnParameters Params;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+	// Spawn a single 1m^3 voxel cube at the given world-space center. Floor
+	// voxels pass NoCollision so ECC_Visibility traces (cursor pick / LoS)
+	// pass through; cover voxels keep QueryAndPhysics so the CombatResolver
+	// line trace treats them as natural blockers.
+	auto SpawnVoxel = [&](const FVector& CenterLoc, UMaterialInterface* Mat,
+		bool bEnableCollision) -> AStaticMeshActor*
+	{
+		AStaticMeshActor* A = World->SpawnActor<AStaticMeshActor>(
+			AStaticMeshActor::StaticClass(), CenterLoc, FRotator::ZeroRotator, Params);
+		if (!A)
+		{
+			return nullptr;
+		}
+		// Mobility must be Movable before SetStaticMesh on a runtime-spawned
+		// StaticMeshActor (default mobility is Static).
+		A->SetMobility(EComponentMobility::Movable);
+		if (UStaticMeshComponent* Comp = A->GetStaticMeshComponent())
+		{
+			Comp->SetStaticMesh(CubeMesh);
+			Comp->SetCollisionEnabled(bEnableCollision
+				? ECollisionEnabled::QueryAndPhysics
+				: ECollisionEnabled::NoCollision);
+			if (Mat)
+			{
+				Comp->SetMaterial(0, Mat);
+			}
+		}
+		// Dressing voxels are spawned once at BeginPlay and never moved
+		// after. Set Mobility back to Static so the engine can fold them
+		// into static-rendering paths instead of dynamic-transform ones.
+		A->SetMobility(EComponentMobility::Static);
+		return A;
+	};
+
+	// Voxel grid: 100 cm cubes (Engine BasicShapes/Cube is 100^3). Aligning
+	// to 100 cm gives "3 voxels = 1 tile move" (node spacing is 300 cm), so
+	// players can read distances directly off the grid. Floor top sits at
+	// Origin.Z - 90 to match the existing Node Z, so each node's 1m^3
+	// Visual cube has its top face flush with the surrounding floor.
+	constexpr float VoxelSize = 100.f;
+	constexpr float HalfVoxel = 50.f;
+	const float FloorTopZ = Origin.Z - 90.f;
+	const float FloorVoxelCenterZ = FloorTopZ - HalfVoxel;
+
+	// Collect the (gx, gy) cells already occupied by ACallsignNode actors
+	// so the floor pass can skip them — the node's own Visual cube renders
+	// the cell instead, which is what removes the "board sitting on top"
+	// look (it's a colored cell of the floor grid rather than a separate
+	// thin slab above it).
+	TSet<FIntPoint> NodeCells;
+	{
+		TArray<AActor*> Nodes;
+		UGameplayStatics::GetAllActorsOfClass(World, ACallsignNode::StaticClass(), Nodes);
+		for (AActor* N : Nodes)
+		{
+			if (!N)
+			{
+				continue;
+			}
+			const FVector NLoc = N->GetActorLocation();
+			const int32 gx = FMath::RoundToInt32((NLoc.X - Origin.X) / VoxelSize);
+			const int32 gy = FMath::RoundToInt32((NLoc.Y - Origin.Y) / VoxelSize);
+			NodeCells.Add(FIntPoint(gx, gy));
+		}
+	}
+
+	// Floor: 13x13 voxels (~13 m square) centered on the origin. Generous
+	// margin around the 3x3 (±300 cm) playable grid so the world doesn't
+	// end abruptly at the outer node ring. Cells under nodes are skipped.
+	constexpr int32 FloorRadius = 6;
+	int32 FloorCount = 0;
+	for (int32 i = -FloorRadius; i <= FloorRadius; ++i)
+	{
+		for (int32 j = -FloorRadius; j <= FloorRadius; ++j)
+		{
+			if (NodeCells.Contains(FIntPoint(i, j)))
+			{
+				continue;
+			}
+			const FVector Loc(
+				Origin.X + i * VoxelSize,
+				Origin.Y + j * VoxelSize,
+				FloorVoxelCenterZ);
+			if (SpawnVoxel(Loc, GridMat, /*bEnableCollision=*/false))
+			{
+				++FloorCount;
+			}
+		}
+	}
+
+	// Cover stacks. Each entry is a (GX,GY) voxel-grid coord (units of
+	// VoxelSize from origin) and a Height in voxels. Crate XY positions are
+	// kept off the cardinal corridors at GX/GY in {-3, 0, 3} so the player
+	// can still walk between any two adjacent nodes without colliding.
+	struct FCoverStack { int32 GX; int32 GY; int32 Height; };
+	const FCoverStack Stacks[] = {
+		// Mid-tile crates: tucked into the diagonal gaps between nodes.
+		{ -1, -2, 1 },
+		{  2, -1, 1 },
+		{  1,  2, 1 },
+		{ -2,  1, 1 },
+		// Sandbag-shaped wall on the west flank: 3 voxels long x 2 deep
+		// x 2 tall (12 voxels). Substantial enough to read as a real wall
+		// rather than a thin row.
+		{ -5, -1, 2 }, { -5, 0, 2 }, { -5, 1, 2 },
+		{ -6, -1, 2 }, { -6, 0, 2 }, { -6, 1, 2 },
+		// Two outer pillars at opposite floor corners. 2x2 footprint x 4
+		// voxels tall (16 voxels each) so they read as solid pillars
+		// instead of poles.
+		{ -6, -6, 4 }, { -5, -6, 4 }, { -6, -5, 4 }, { -5, -5, 4 },
+		{  6,  6, 4 }, {  5,  6, 4 }, {  6,  5, 4 }, {  5,  5, 4 },
+	};
+
+	int32 CoverCount = 0;
+	for (const FCoverStack& S : Stacks)
+	{
+		for (int32 z = 0; z < S.Height; ++z)
+		{
+			const FVector Loc(
+				Origin.X + S.GX * VoxelSize,
+				Origin.Y + S.GY * VoxelSize,
+				FloorTopZ + HalfVoxel + z * VoxelSize);
+			if (SpawnVoxel(Loc, /*Mat*/ nullptr, /*bEnableCollision=*/true))
+			{
+				++CoverCount;
+			}
+		}
+	}
+
+	UE_LOG(LogTemp, Display, TEXT("[GameMode] EnvironmentDressing: %d floor voxels (%d node cells skipped) + %d cover voxels"),
+		FloorCount, NodeCells.Num(), CoverCount);
 }
 
 void ACallsignExfilGameMode::EquipPhase2DemoLoadout(APawn* Pawn, bool bIsEnemy)
