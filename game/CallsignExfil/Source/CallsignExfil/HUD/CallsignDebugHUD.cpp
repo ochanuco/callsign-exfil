@@ -4,9 +4,11 @@
 
 #include "CallsignExfilPlayerController.h"
 #include "CallsignMessageBus.h"
+#include "Components/CapsuleComponent.h"
 #include "DrawDebugHelpers.h"
 #include "Engine/Canvas.h"
 #include "Engine/World.h"
+#include "GameFramework/Character.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
@@ -138,8 +140,18 @@ void ACallsignDebugHUD::DrawHUD()
                                 DrawDebugLine(World, PLoc, ELoc, TargetColor,
                                         /*bPersistent*/ false, /*Lifetime*/ 0.05f,
                                         /*DepthPriority*/ SDPG_Foreground, /*Thickness*/ 2.5f);
-                                // Ring around the target's feet (capsule half-height ~88).
-                                const FVector RingCenter = ELoc + FVector(0.f, 0.f, -88.f);
+                                // Ring around the target's feet. Use capsule half-height when
+                                // the target is an ACharacter so taller / shorter pawns don't
+                                // float or sink the ring; fall back to the default 88 cm.
+                                float HalfHeight = 88.f;
+                                if (ACharacter* TargetChar = Cast<ACharacter>(Nearest))
+                                {
+                                        if (UCapsuleComponent* Cap = TargetChar->GetCapsuleComponent())
+                                        {
+                                                HalfHeight = Cap->GetScaledCapsuleHalfHeight();
+                                        }
+                                }
+                                const FVector RingCenter = ELoc + FVector(0.f, 0.f, -HalfHeight);
                                 DrawDebugCircle(World, RingCenter, /*Radius*/ 70.f, /*Segments*/ 24,
                                         TargetColor, /*bPersistent*/ false, /*Lifetime*/ 0.05f,
                                         /*DepthPriority*/ SDPG_Foreground, /*Thickness*/ 2.5f,
@@ -208,12 +220,24 @@ void ACallsignDebugHUD::DrawHUD()
                                 const float EasedProgress = FMath::SmoothStep(0.f, 1.f, SlideProgress);
                                 const float SlideYOffset = (1.f - EasedProgress) * LineStep;
 
-                                // Background panel: sized to the settled message stack. During
-                                // animation the new (bottom) message draws below the panel — its
-                                // own fade-in alpha keeps that brief overshoot subtle.
-                                const float PanelHeight = (Count * LineStep) + (2.f * PanelPadding);
+                                // Background panel: sized to the *visible* portion of the
+                                // settled message stack. The text-draw loop bails when a line
+                                // walks off the top of the viewport, so sizing by the total
+                                // active count would grow the panel past the visible area.
+                                // Compute how many settled rows fit between BottomMargin and
+                                // the top of the viewport, then clamp Count by that.
+                                const float UsableHeight = ClipY - BottomMargin - PanelPadding;
+                                const int32 MaxVisibleLines = (LineStep > 0.f && UsableHeight > 0.f)
+                                        ? FMath::Max(1, FMath::FloorToInt(UsableHeight / LineStep) + 1)
+                                        : 1;
+                                const int32 VisibleCount = FMath::Min(Count, MaxVisibleLines);
+
+                                // During animation the new (bottom) message draws below the
+                                // panel — its own fade-in alpha keeps that brief overshoot
+                                // subtle.
+                                const float PanelHeight = (VisibleCount * LineStep) + (2.f * PanelPadding);
                                 const float PanelX = X - TextLeftInset - PanelPadding;
-                                const float PanelY = ClipY - BottomMargin - ((Count - 1) * LineStep) - PanelPadding;
+                                const float PanelY = ClipY - BottomMargin - ((VisibleCount - 1) * LineStep) - PanelPadding;
                                 const float PanelW = PanelWidth + (2.f * PanelPadding);
                                 DrawRect(PanelBgColor, PanelX, PanelY, PanelW, PanelHeight);
                                 // Top + bottom border lines for a "window" feel.
