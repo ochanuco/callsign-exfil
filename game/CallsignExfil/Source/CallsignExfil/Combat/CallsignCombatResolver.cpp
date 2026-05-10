@@ -68,50 +68,48 @@ FCallsignShotResult UCallsignCombatResolver::ResolveShot(const FCallsignShotRequ
         const bool bRequiresLos = Weapon ? Weapon->bRequiresLineOfSight : true;
         const float Damage = Weapon ? Weapon->Damage : 0.f;
 
-        if (bRequiresLos && !Result.LosResult.bHasLineOfSight)
-        {
-                Result.bHit = false;
-                Result.DamageApplied = 0.f;
-                return Result;
-        }
+        // Issue #40: do not early-return on LoS-blocked. Fall through to the
+        // tracer block at the end so misses still draw their duller-tint
+        // visualization. Skip the actual ApplyPointDamage when LoS is blocked.
+        const bool bLosBlocked = bRequiresLos && !Result.LosResult.bHasLineOfSight;
 
-        // Phase 2 (issue #22): when the caller carries an explicit target, that's
-        // the victim - the LoS pass already ignored both source and target so the
-        // trace's BlockingActor is null on a clear path. Fall back to the
-        // LoS-reported blocker when no explicit target is provided (Phase 1).
-        AActor* Victim = Request.TargetActor.Get();
-        if (!Victim)
+        if (!bLosBlocked)
         {
-                Victim = Result.LosResult.BlockingActor.Get();
-        }
-        AActor* Instigator = Request.Instigator.Get();
-
-        if (Victim && Damage > 0.f)
-        {
-                const FVector HitDir = (Request.To - Request.From).GetSafeNormal();
-                AController* InstigatorController = nullptr;
-                if (APawn* InstigatorPawn = Cast<APawn>(Instigator))
+                // Phase 2 (issue #22): when the caller carries an explicit target, that's
+                // the victim - the LoS pass already ignored both source and target so the
+                // trace's BlockingActor is null on a clear path. Fall back to the
+                // LoS-reported blocker when no explicit target is provided (Phase 1).
+                AActor* Victim = Request.TargetActor.Get();
+                if (!Victim)
                 {
-                        InstigatorController = InstigatorPawn->GetController();
+                        Victim = Result.LosResult.BlockingActor.Get();
                 }
+                AActor* Instigator = Request.Instigator.Get();
 
-                UGameplayStatics::ApplyPointDamage(
-                        Victim,
-                        Damage,
-                        HitDir,
-                        FHitResult(),
-                        InstigatorController,
-                        Instigator,
-                        nullptr);
+                if (Victim && Damage > 0.f)
+                {
+                        const FVector HitDir = (Request.To - Request.From).GetSafeNormal();
+                        AController* InstigatorController = nullptr;
+                        if (APawn* InstigatorPawn = Cast<APawn>(Instigator))
+                        {
+                                InstigatorController = InstigatorPawn->GetController();
+                        }
 
-                Result.bHit = true;
-                Result.DamageApplied = Damage;
+                        UGameplayStatics::ApplyPointDamage(
+                                Victim,
+                                Damage,
+                                HitDir,
+                                FHitResult(),
+                                InstigatorController,
+                                Instigator,
+                                nullptr);
+
+                        Result.bHit = true;
+                        Result.DamageApplied = Damage;
+                }
         }
-        else
-        {
-                Result.bHit = false;
-                Result.DamageApplied = 0.f;
-        }
+        // Result.bHit / Result.DamageApplied default to false / 0 for the miss
+        // and LoS-blocked paths; nothing else to set.
 
         // Phase 2 demo: lightweight hit/damage trace so the auto-demo can be observed in
         // the Output Log when the request was routed via Inventory (ADR-003 §4.3 Phase 2 path).
