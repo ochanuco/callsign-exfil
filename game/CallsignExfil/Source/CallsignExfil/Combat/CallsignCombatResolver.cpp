@@ -48,17 +48,16 @@ FCallsignShotResult UCallsignCombatResolver::ResolveShot(const FCallsignShotRequ
                         Ignore.Add(Inst);
                 }
                 // Phase 2 (issue #22): also ignore the intended target so the trace
-                // doesn't get blocked by the target's own capsule. Phase 1 callers
-                // leave Inventory + TargetActor null and the original Instigator-only
-                // ignore set is preserved.
-                if (Phase2WeaponDef)
+                // doesn't get blocked by the target's own capsule. Gate on
+                // Request.TargetActor presence (issue #24) so future callers that
+                // set TargetActor without Inventory still get target-aware LoS.
+                // Phase 1 callers leave TargetActor null and the original
+                // Instigator-only ignore set is preserved.
+                if (AActor* T = Request.TargetActor.Get())
                 {
-                        if (AActor* T = Request.TargetActor.Get())
-                        {
-                                Ignore.Add(T);
-                        }
+                        Ignore.Add(T);
                         UE_LOG(LogTemp, Verbose, TEXT("[Combat] LoS ignore: Instigator=%s Target=%s"),
-                                *GetNameSafe(Request.Instigator.Get()), *GetNameSafe(Request.TargetActor.Get()));
+                                *GetNameSafe(Request.Instigator.Get()), *GetNameSafe(T));
                 }
                 Result.LosResult = LosService->Query(Request.From, Request.To, Ignore);
         }
