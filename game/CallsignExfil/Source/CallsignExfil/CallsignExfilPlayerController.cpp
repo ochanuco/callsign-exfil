@@ -302,6 +302,17 @@ bool ACallsignExfilPlayerController::TryShootAtActor(AActor* Target)
 	Request.To = Target->GetActorLocation();
 	Request.Weapon = DefaultWeapon;
 
+	// Phase 2 (ADR-003 §4.3): route through pawn's Inventory so the resolver
+	// consumes ammo/durability via the Phase 2 path. Phase 1 callers that need
+	// the legacy path can leave Request.Inventory null themselves.
+	if (P)
+	{
+		if (UCallsignInventoryComponent* Inv = P->FindComponentByClass<UCallsignInventoryComponent>())
+		{
+			Request.Inventory = Inv;
+		}
+	}
+
 	const FCallsignShotResult Result = Resolver->ResolveShot(Request);
 
 	UE_LOG(LogTemp, Display, TEXT("[PC] TryShootAtActor -> hit=%d damage=%.2f"),
