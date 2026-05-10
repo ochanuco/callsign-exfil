@@ -42,6 +42,16 @@ bool ACallsignNode::IsOccupied() const
         return Occupant.IsValid();
 }
 
+void ACallsignNode::MarkDestroyed()
+{
+        if (bIsDestroyed)
+        {
+                return;
+        }
+        bIsDestroyed = true;
+        OnNodeDestroyed.Broadcast(this);
+}
+
 bool ACallsignNode::IsAdjacent(const ACallsignNode* Other) const
 {
         if (!Other)
