@@ -27,6 +27,7 @@ void UCallsignMessageBus::Push(const FString& Text, FLinearColor Color, float Li
         if (UWorld* World = GetWorld())
         {
                 Msg.SpawnedAt = World->GetTimeSeconds();
+                LastPushAt = Msg.SpawnedAt;
         }
         else
         {
