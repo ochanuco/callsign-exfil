@@ -46,7 +46,7 @@ public:
         void Clear();
 
         /** Maximum retained entries. Older entries are dropped on overflow. */
-        UPROPERTY(EditDefaultsOnly, Category = "Callsign|Messaging")
+        UPROPERTY(EditDefaultsOnly, Category = "Callsign|Messaging", meta = (ClampMin = "1", UIMin = "1"))
         int32 MaxLines = 12;
 
         /**
