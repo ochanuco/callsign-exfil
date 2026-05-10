@@ -107,6 +107,16 @@ void ACallsignExfilPlayerController::SetupInputComponent()
 {
 	Super::SetupInputComponent();
 
+	// Direct number-key bindings for the Phase 2 demo (Mac JIS-friendly: no modifiers).
+	// Coexists with Enhanced Input — these run via the legacy InputComponent path.
+	if (InputComponent)
+	{
+		InputComponent->BindKey(EKeys::One,   IE_Pressed, this, &ACallsignExfilPlayerController::CsxStatus);
+		InputComponent->BindKey(EKeys::Two,   IE_Pressed, this, &ACallsignExfilPlayerController::CsxShoot);
+		InputComponent->BindKey(EKeys::Three, IE_Pressed, this, &ACallsignExfilPlayerController::CsxReload);
+		InputComponent->BindKey(EKeys::Four,  IE_Pressed, this, &ACallsignExfilPlayerController::CsxEndTurn);
+	}
+
 	// only add IMCs for local player controllers
 	if (IsLocalPlayerController())
 	{
