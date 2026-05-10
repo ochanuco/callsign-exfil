@@ -12,6 +12,7 @@
 class ACallsignNode;
 class UStaticMeshComponent;
 class UCallsignInventoryComponent;
+class UCallsignNodeMoverComponent;
 
 /**
  *  Phase 1 sole enemy archetype. Implements both NodeOccupant and TurnParticipant
@@ -42,6 +43,10 @@ public:
         /** Phase 2: per-pawn inventory. Phase 2 enemy AI does not reload (ADR-003 §13). */
         UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Callsign|Inventory")
         TObjectPtr<UCallsignInventoryComponent> Inventory;
+
+        /** Smooth node-to-node interpolation; picked up by CallsignNodeMovement helper. */
+        UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Callsign|Move")
+        TObjectPtr<UCallsignNodeMoverComponent> NodeMover;
 
         // ICallsignNodeOccupant
         virtual ACallsignNode* GetCurrentNode_Implementation() const override;

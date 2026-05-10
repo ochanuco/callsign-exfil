@@ -15,6 +15,7 @@ class UCameraComponent;
 class UInputAction;
 class ACallsignNode;
 class UCallsignInventoryComponent;
+class UCallsignNodeMoverComponent;
 struct FInputActionValue;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
@@ -103,6 +104,10 @@ public:
 	/** Phase 2: per-pawn inventory (weapon slots + ammo pool). ADR-003 §4.1. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Callsign|Inventory")
 	TObjectPtr<UCallsignInventoryComponent> Inventory;
+
+	/** Smooth node-to-node interpolation; picked up by CallsignNodeMovement helper. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Callsign|Move")
+	TObjectPtr<UCallsignNodeMoverComponent> NodeMover;
 
 	/** Node currently occupied by the player. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Callsign|Node")

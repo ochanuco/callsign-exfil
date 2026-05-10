@@ -3,6 +3,7 @@
 #include "CallsignNodeMovement.h"
 
 #include "CallsignNode.h"
+#include "CallsignNodeMoverComponent.h"
 #include "GameFramework/Actor.h"
 
 namespace CallsignNodeMovement
@@ -32,8 +33,18 @@ namespace CallsignNodeMovement
 
                 if (TargetNode)
                 {
-                        // Phase 1: simple teleport. TODO Phase 2: smooth interpolation/anim.
-                        Pawn->SetActorLocation(TargetNode->GetActorLocation());
+                        const FVector EndLoc = TargetNode->GetActorLocation();
+                        // If the pawn carries a UCallsignNodeMoverComponent, smoothly
+                        // interpolate over a short duration. Otherwise fall back to
+                        // an instant SetActorLocation (Phase 1 default).
+                        if (UCallsignNodeMoverComponent* Mover = Pawn->FindComponentByClass<UCallsignNodeMoverComponent>())
+                        {
+                                Mover->StartMove(EndLoc, /*Duration*/ 0.f); // 0 = use component default
+                        }
+                        else
+                        {
+                                Pawn->SetActorLocation(EndLoc);
+                        }
                         TargetNode->Occupant = Pawn;
                 }
 
