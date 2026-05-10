@@ -4,7 +4,7 @@
 
 #include "CallsignRifleEnemy.h"
 #include "Engine/World.h"
-#include "Kismet/GameplayStatics.h"
+#include "EngineUtils.h"
 
 namespace CallsignTargeting
 {
@@ -15,13 +15,13 @@ namespace CallsignTargeting
 			return nullptr;
 		}
 
-		TArray<AActor*> Enemies;
-		UGameplayStatics::GetAllActorsOfClass(World, ACallsignRifleEnemy::StaticClass(), Enemies);
-
+		// HUD draws targeting preview every frame, so prefer TActorIterator
+		// over GetAllActorsOfClass to avoid the per-frame TArray allocation.
 		AActor* Nearest = nullptr;
 		float NearestDistSq = TNumericLimits<float>::Max();
-		for (AActor* E : Enemies)
+		for (TActorIterator<ACallsignRifleEnemy> It(World); It; ++It)
 		{
+			AActor* E = *It;
 			if (!E)
 			{
 				continue;
