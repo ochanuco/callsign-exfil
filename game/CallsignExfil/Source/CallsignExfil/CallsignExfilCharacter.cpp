@@ -11,11 +11,13 @@
 #include "EnhancedInputSubsystems.h"
 #include "InputActionValue.h"
 #include "CallsignExfil.h"
+#include "HUD/CallsignMessageBus.h"
 #include "Inventory/CallsignInventoryComponent.h"
 #include "Node/CallsignNodeMoverComponent.h"
 #include "Node/CallsignNode.h"
 #include "Node/CallsignNodeMovement.h"
 #include "Node/CallsignNodeOccupant.h"
+#include "Pawns/CallsignHealthComponent.h"
 #include "Turn/CallsignTurnParticipant.h"
 
 ACallsignExfilCharacter::ACallsignExfilCharacter()
@@ -62,8 +64,21 @@ ACallsignExfilCharacter::ACallsignExfilCharacter()
 	// to replace the instant SetActorLocation hop with a 0.35s lerp.
 	NodeMover = CreateDefaultSubobject<UCallsignNodeMoverComponent>(TEXT("NodeMover"));
 
+	// HP / death tracking. ApplyPointDamage from Combat / SupportResolver
+	// flows through TakeDamage -> HealthComp::ApplyDamage.
+	HealthComp = CreateDefaultSubobject<UCallsignHealthComponent>(TEXT("HealthComp"));
+
 	// Note: The skeletal mesh and anim blueprint references on the Mesh component (inherited from Character)
 	// are set in the derived blueprint asset named ThirdPersonCharacter (to avoid direct content references in C++)
+}
+
+void ACallsignExfilCharacter::BeginPlay()
+{
+	Super::BeginPlay();
+	if (HealthComp)
+	{
+		HealthComp->OnDied.AddDynamic(this, &ACallsignExfilCharacter::HandleDied);
+	}
 }
 
 void ACallsignExfilCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -160,6 +175,14 @@ void ACallsignExfilCharacter::MoveToNode_Implementation(ACallsignNode* TargetNod
 
 void ACallsignExfilCharacter::BeginTurn_Implementation()
 {
+	// Auto-skip dead pawn's turn: the auto-advance timer in GameMode would
+	// stall on IsTurnFinished otherwise (and the player would see misleading
+	// "your turn" messaging while hidden).
+	if (HealthComp && HealthComp->bIsDead)
+	{
+		bTurnFinished = true;
+		return;
+	}
 	// Player turns are driven by the PlayerController; no work here in Phase 1.
 	bTurnFinished = false;
 }
@@ -167,4 +190,39 @@ void ACallsignExfilCharacter::BeginTurn_Implementation()
 bool ACallsignExfilCharacter::IsTurnFinished_Implementation() const
 {
 	return bTurnFinished;
+}
+
+float ACallsignExfilCharacter::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent,
+	AController* EventInstigator, AActor* DamageCauser)
+{
+	// Return what HealthComp ACTUALLY applied, not what Super accepted.
+	// Otherwise dead targets / sub-1.0 damage round-down / over-cap clamp
+	// all desync the caller's view from real HP state.
+	if (!HealthComp || !HealthComp->IsAlive() || DamageAmount <= 0.f)
+	{
+		return 0.f;
+	}
+	const float Requested = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
+	const int32 Applied = HealthComp->ApplyDamage(FMath::FloorToInt32(Requested), DamageCauser);
+	return static_cast<float>(Applied);
+}
+
+void ACallsignExfilCharacter::HandleDied(UCallsignHealthComponent* /*Comp*/)
+{
+	UE_LOG(LogTemp, Display, TEXT("[Health] Player character %s down — hiding"), *GetName());
+	CallsignMsg::PushSystem(GetWorld(), TEXT("作戦員が戦闘不能になった。"));
+
+	SetActorHiddenInGame(true);
+	if (UCapsuleComponent* Cap = GetCapsuleComponent())
+	{
+		Cap->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	}
+	// Vacate node occupancy so pathing / IsOccupied don't keep the cell
+	// blocked behind a corpse. Mirrors the cleanup CallsignNodeMovement
+	// does when a live pawn moves out.
+	if (CurrentNode && CurrentNode->Occupant.Get() == this)
+	{
+		CurrentNode->Occupant = nullptr;
+	}
+	bTurnFinished = true;
 }

@@ -12,6 +12,7 @@
 class ACallsignNode;
 class UStaticMeshComponent;
 class UCallsignInventoryComponent;
+class UCallsignHealthComponent;
 class UCallsignNodeMoverComponent;
 
 /**
@@ -48,6 +49,10 @@ public:
         UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Callsign|Move")
         TObjectPtr<UCallsignNodeMoverComponent> NodeMover;
 
+        /** HP / death tracking for support strikes & enemy fire. */
+        UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Callsign|Health")
+        TObjectPtr<UCallsignHealthComponent> HealthComp;
+
         // ICallsignNodeOccupant
         virtual ACallsignNode* GetCurrentNode_Implementation() const override;
         virtual void MoveToNode_Implementation(ACallsignNode* TargetNode) override;
@@ -55,4 +60,14 @@ public:
         // ICallsignTurnParticipant
         virtual void BeginTurn_Implementation() override;
         virtual bool IsTurnFinished_Implementation() const override;
+
+        virtual float TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent,
+                AController* EventInstigator, AActor* DamageCauser) override;
+
+protected:
+        virtual void BeginPlay() override;
+
+private:
+        UFUNCTION()
+        void HandleDied(UCallsignHealthComponent* Comp);
 };

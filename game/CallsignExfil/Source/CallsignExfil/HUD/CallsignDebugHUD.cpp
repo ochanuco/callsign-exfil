@@ -11,8 +11,11 @@
 #include "GameFramework/Character.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
+#include "Pawns/CallsignHealthComponent.h"
+#include "Pawns/CallsignRifleEnemy.h"
 #include "Pawns/CallsignTargeting.h"
 #include "Node/CallsignNode.h"
+#include "EngineUtils.h"
 #include "Turn/CallsignTurnSystem.h"
 #include "LineOfSight/CallsignLineOfSightService.h"
 #include "Data/CallsignSupportTypes.h"
@@ -37,7 +40,7 @@ void ACallsignDebugHUD::DrawHUD()
         }
 
         if (!bShowTurnInfo && !bShowLoSPreview && !bShowMessageLog && !bShowKeyHelp
-                && !bShowTargetingPreview && !bShowSupportPreview)
+                && !bShowTargetingPreview && !bShowSupportPreview && !bShowHealthOverlay)
         {
                 return;
         }
@@ -222,6 +225,56 @@ void ACallsignDebugHUD::DrawHUD()
                                         }
                                 }
                         }
+                }
+        }
+
+        // ---- 2b'''. Health overlay ----
+        // Draws a player HP bar at the top-left below turn info, plus a small
+        // HP text above each living rifle enemy's head. Provides immediate
+        // feedback that ApplyPointDamage / SupportResolver actually depleted
+        // someone's health.
+        if (bShowHealthOverlay && Canvas)
+        {
+                APlayerController* PCH = GetOwningPlayerController();
+                APawn* PlayerP = PCH ? PCH->GetPawn() : nullptr;
+                if (PlayerP)
+                {
+                        if (UCallsignHealthComponent* HC = PlayerP->FindComponentByClass<UCallsignHealthComponent>())
+                        {
+                                const float MaxW = 360.f;
+                                const float BarH = 22.f;
+                                const float X = 30.f;
+                                const float Y = 240.f;
+                                const float Pct = HC->MaxHealth > 0
+                                        ? FMath::Clamp(static_cast<float>(HC->CurrentHealth) / HC->MaxHealth, 0.f, 1.f)
+                                        : 0.f;
+                                DrawRect(FLinearColor(0.f, 0.f, 0.f, 0.7f), X, Y, MaxW, BarH);
+                                DrawRect(FLinearColor(0.2f, 0.85f, 0.3f, 0.9f), X, Y, MaxW * Pct, BarH);
+                                const FString HpText = FString::Printf(TEXT("HP %d/%d"),
+                                        HC->CurrentHealth, HC->MaxHealth);
+                                DrawText(HpText, FLinearColor::White, X + 8.f, Y - 2.f,
+                                        /*Font*/ nullptr, /*Scale*/ 1.6f, false);
+                        }
+                }
+
+                // Floating HP text on each living enemy.
+                for (TActorIterator<ACallsignRifleEnemy> It(World); It; ++It)
+                {
+                        ACallsignRifleEnemy* Enemy = *It;
+                        if (!Enemy || !Enemy->HealthComp || Enemy->HealthComp->bIsDead)
+                        {
+                                continue;
+                        }
+                        const FVector Above = Enemy->GetActorLocation() + FVector(0.f, 0.f, 110.f);
+                        const FVector Screen = Project(Above);
+                        if (Screen.Z <= 0.f)
+                        {
+                                continue;
+                        }
+                        const FString EnemyHp = FString::Printf(TEXT("%d/%d"),
+                                Enemy->HealthComp->CurrentHealth, Enemy->HealthComp->MaxHealth);
+                        DrawText(EnemyHp, FLinearColor(1.0f, 0.4f, 0.4f, 1.0f),
+                                Screen.X - 24.f, Screen.Y, /*Font*/ nullptr, /*Scale*/ 1.4f, false);
                 }
         }
 

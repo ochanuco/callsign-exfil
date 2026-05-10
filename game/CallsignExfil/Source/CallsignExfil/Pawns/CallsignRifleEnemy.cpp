@@ -2,6 +2,8 @@
 
 #include "CallsignRifleEnemy.h"
 #include "CallsignRifleEnemyController.h"
+#include "CallsignHealthComponent.h"
+#include "HUD/CallsignMessageBus.h"
 #include "Inventory/CallsignInventoryComponent.h"
 #include "Node/CallsignNode.h"
 #include "Node/CallsignNodeMoverComponent.h"
@@ -38,6 +40,55 @@ ACallsignRifleEnemy::ACallsignRifleEnemy()
         // Smooth node-to-node interpolation. CallsignNodeMovement::TeleportPawnToNode
         // detects this component and replaces instant SetActorLocation with a 0.35s lerp.
         NodeMover = CreateDefaultSubobject<UCallsignNodeMoverComponent>(TEXT("NodeMover"));
+
+        // HP / death tracking. ApplyPointDamage from Combat / SupportResolver
+        // flows through TakeDamage -> HealthComp::ApplyDamage.
+        HealthComp = CreateDefaultSubobject<UCallsignHealthComponent>(TEXT("HealthComp"));
+}
+
+void ACallsignRifleEnemy::BeginPlay()
+{
+        Super::BeginPlay();
+        if (HealthComp)
+        {
+                HealthComp->OnDied.AddDynamic(this, &ACallsignRifleEnemy::HandleDied);
+        }
+}
+
+float ACallsignRifleEnemy::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent,
+        AController* EventInstigator, AActor* DamageCauser)
+{
+        // Return what HealthComp ACTUALLY applied, not what Super accepted —
+        // otherwise dead targets / round-down / over-cap clamp desync the
+        // caller's view of damage from real HP state.
+        if (!HealthComp || !HealthComp->IsAlive() || DamageAmount <= 0.f)
+        {
+                return 0.f;
+        }
+        const float Requested = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
+        const int32 Applied = HealthComp->ApplyDamage(FMath::FloorToInt32(Requested), DamageCauser);
+        return static_cast<float>(Applied);
+}
+
+void ACallsignRifleEnemy::HandleDied(UCallsignHealthComponent* /*Comp*/)
+{
+        UE_LOG(LogTemp, Display, TEXT("[Health] Rifle enemy %s down — hiding"), *GetName());
+        CallsignMsg::PushSystem(GetWorld(), TEXT("敵が制圧された。"));
+
+        SetActorHiddenInGame(true);
+        if (UCapsuleComponent* Cap = GetCapsuleComponent())
+        {
+                Cap->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+        }
+        // Vacate node occupancy so future moves into this cell aren't rejected
+        // by IsOccupied() seeing a still-live WeakObjectPtr to a hidden corpse.
+        if (CurrentNode && CurrentNode->Occupant.Get() == this)
+        {
+                CurrentNode->Occupant = nullptr;
+        }
+        // Mark turn as finished so the AI controller doesn't stall the round
+        // if death lands during this enemy's turn.
+        bTurnFinished = true;
 }
 
 ACallsignNode* ACallsignRifleEnemy::GetCurrentNode_Implementation() const
@@ -53,6 +104,14 @@ void ACallsignRifleEnemy::MoveToNode_Implementation(ACallsignNode* TargetNode)
 void ACallsignRifleEnemy::BeginTurn_Implementation()
 {
         bTurnFinished = false;
+
+        // Skip turn entirely if dead. The GameMode auto-advance timer still
+        // ticks the round forward; we just don't queue any AI action.
+        if (HealthComp && HealthComp->bIsDead)
+        {
+                bTurnFinished = true;
+                return;
+        }
 
         // Delegate to the AIController which actually decides + moves + ends the turn.
         if (ACallsignRifleEnemyController* AIC = Cast<ACallsignRifleEnemyController>(GetController()))
