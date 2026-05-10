@@ -85,8 +85,13 @@ void ACallsignRifleEnemyController::BeginTurn_Implementation()
                                 const FVector From = Enemy->GetActorLocation();
                                 const FVector To = TargetPawn->GetActorLocation();
 
+                                // Issue #22: ignore both source (Enemy) and target (TargetPawn)
+                                // so the trace from enemy to player isn't misread as "blocked
+                                // by the player's own capsule". Mirrors the CombatResolver
+                                // Phase 2 LoS semantics so the pre-check matches.
                                 TArray<AActor*> Ignore;
                                 Ignore.Add(Enemy);
+                                Ignore.Add(TargetPawn);
                                 const FCallsignLineOfSightResult LosRes = Los->Query(From, To, Ignore);
 
                                 UCallsignWeaponInstanceObject* CurWeapon = Inv->GetCurrentWeapon();
@@ -101,6 +106,9 @@ void ACallsignRifleEnemyController::BeginTurn_Implementation()
                                         Req.To = To;
                                         Req.Weapon = WeaponDef;
                                         Req.Inventory = Inv;
+                                        // Issue #22: target-aware LoS - resolver ignores
+                                        // both Instigator and TargetActor when tracing.
+                                        Req.TargetActor = TargetPawn;
 
                                         const FCallsignShotResult Res = Combat->ResolveShot(Req);
                                         UE_LOG(LogTemp, Display, TEXT("[EnemyAI] shot: hit=%d damage=%.2f"),

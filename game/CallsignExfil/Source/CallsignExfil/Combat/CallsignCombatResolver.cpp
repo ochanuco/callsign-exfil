@@ -45,6 +45,19 @@ FCallsignShotResult UCallsignCombatResolver::ResolveShot(const FCallsignShotRequ
                 {
                         Ignore.Add(Inst);
                 }
+                // Phase 2 (issue #22): also ignore the intended target so the trace
+                // doesn't get blocked by the target's own capsule. Phase 1 callers
+                // leave Inventory + TargetActor null and the original Instigator-only
+                // ignore set is preserved.
+                if (Phase2WeaponDef)
+                {
+                        if (AActor* T = Request.TargetActor.Get())
+                        {
+                                Ignore.Add(T);
+                        }
+                        UE_LOG(LogTemp, Verbose, TEXT("[Combat] LoS ignore: Instigator=%s Target=%s"),
+                                *GetNameSafe(Request.Instigator.Get()), *GetNameSafe(Request.TargetActor.Get()));
+                }
                 Result.LosResult = LosService->Query(Request.From, Request.To, Ignore);
         }
 
@@ -61,10 +74,15 @@ FCallsignShotResult UCallsignCombatResolver::ResolveShot(const FCallsignShotRequ
                 return Result;
         }
 
-        // TODO Phase 1 impl: pick the actual victim (intended target vs. blocker)
-        // once a richer FCallsignShotRequest carries the target reference. For now
-        // we fall back to the LoS-reported blocker if any.
-        AActor* Victim = Result.LosResult.BlockingActor.Get();
+        // Phase 2 (issue #22): when the caller carries an explicit target, that's
+        // the victim - the LoS pass already ignored both source and target so the
+        // trace's BlockingActor is null on a clear path. Fall back to the
+        // LoS-reported blocker when no explicit target is provided (Phase 1).
+        AActor* Victim = Request.TargetActor.Get();
+        if (!Victim)
+        {
+                Victim = Result.LosResult.BlockingActor.Get();
+        }
         AActor* Instigator = Request.Instigator.Get();
 
         if (Victim && Damage > 0.f)
