@@ -13,11 +13,15 @@
 #include "Combat/CallsignCombatResolver.h"
 #include "Data/CallsignTypes.h"
 #include "Data/CallsignWeaponDefinition.h"
+#include "Data/CallsignWeaponTypes.h"
 #include "Inventory/CallsignInventoryComponent.h"
+#include "Kismet/GameplayStatics.h"
 #include "Node/CallsignNode.h"
 #include "Node/CallsignNodeOccupant.h"
+#include "Pawns/CallsignRifleEnemy.h"
 #include "Turn/CallsignTurnParticipant.h"
 #include "Turn/CallsignTurnSystem.h"
+#include "Weapon/CallsignWeaponInstanceObject.h"
 #include "Widgets/Input/SVirtualJoystick.h"
 
 ACallsignExfilPlayerController::ACallsignExfilPlayerController()
@@ -383,4 +387,126 @@ void ACallsignExfilPlayerController::EndTurn()
 
 	TurnSys->EndCurrentTurn();
 	UE_LOG(LogTemp, Display, TEXT("[PC] EndTurn"));
+}
+
+void ACallsignExfilPlayerController::CsxShoot()
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[PC|cmd] CsxShoot: no world"));
+		return;
+	}
+
+	TArray<AActor*> FoundEnemies;
+	UGameplayStatics::GetAllActorsOfClass(World, ACallsignRifleEnemy::StaticClass(), FoundEnemies);
+
+	if (FoundEnemies.Num() == 0)
+	{
+		UE_LOG(LogTemp, Display, TEXT("[PC|cmd] CsxShoot: no enemy in world"));
+		return;
+	}
+
+	APawn* P = GetPawn();
+	const FVector MyLocation = P ? P->GetActorLocation() : FVector::ZeroVector;
+
+	AActor* NearestEnemy = nullptr;
+	float NearestDistSq = TNumericLimits<float>::Max();
+	for (AActor* Enemy : FoundEnemies)
+	{
+		if (!Enemy)
+		{
+			continue;
+		}
+		const float DistSq = (MyLocation - Enemy->GetActorLocation()).SizeSquared();
+		if (DistSq < NearestDistSq)
+		{
+			NearestDistSq = DistSq;
+			NearestEnemy = Enemy;
+		}
+	}
+
+	if (!NearestEnemy)
+	{
+		UE_LOG(LogTemp, Display, TEXT("[PC|cmd] CsxShoot: no enemy in world"));
+		return;
+	}
+
+	const bool bResult = TryShootAtActor(NearestEnemy);
+	UE_LOG(LogTemp, Display, TEXT("[PC|cmd] CsxShoot -> %s (returned=%d)"),
+		*GetNameSafe(NearestEnemy), bResult ? 1 : 0);
+}
+
+void ACallsignExfilPlayerController::CsxReload()
+{
+	const bool bResult = TryReload();
+	UE_LOG(LogTemp, Display, TEXT("[PC|cmd] CsxReload -> %d"), bResult ? 1 : 0);
+}
+
+void ACallsignExfilPlayerController::CsxEndTurn()
+{
+	EndTurn();
+	UE_LOG(LogTemp, Display, TEXT("[PC|cmd] CsxEndTurn invoked"));
+}
+
+void ACallsignExfilPlayerController::CsxStatus()
+{
+	UE_LOG(LogTemp, Display, TEXT("[PC|cmd] === Status ==="));
+	UE_LOG(LogTemp, Display, TEXT("[PC|cmd] IsMyTurn = %d"), IsMyTurn() ? 1 : 0);
+
+	APawn* P = GetPawn();
+	if (!P)
+	{
+		UE_LOG(LogTemp, Display, TEXT("[PC|cmd] Weapon = <unavailable>"));
+		UE_LOG(LogTemp, Display, TEXT("[PC|cmd] Magazine = <unavailable>"));
+		UE_LOG(LogTemp, Display, TEXT("[PC|cmd] Durability = <unavailable>"));
+		UE_LOG(LogTemp, Display, TEXT("[PC|cmd] IsBroken = <unavailable>"));
+		UE_LOG(LogTemp, Display, TEXT("[PC|cmd] Ammo = <unavailable>"));
+		return;
+	}
+
+	UCallsignInventoryComponent* Inv = P->FindComponentByClass<UCallsignInventoryComponent>();
+	if (!Inv)
+	{
+		UE_LOG(LogTemp, Display, TEXT("[PC|cmd] Weapon = <unavailable>"));
+		UE_LOG(LogTemp, Display, TEXT("[PC|cmd] Magazine = <unavailable>"));
+		UE_LOG(LogTemp, Display, TEXT("[PC|cmd] Durability = <unavailable>"));
+		UE_LOG(LogTemp, Display, TEXT("[PC|cmd] IsBroken = <unavailable>"));
+		UE_LOG(LogTemp, Display, TEXT("[PC|cmd] Ammo = <unavailable>"));
+		return;
+	}
+
+	UCallsignWeaponInstanceObject* Weapon = Inv->GetCurrentWeapon();
+	if (!Weapon)
+	{
+		UE_LOG(LogTemp, Display, TEXT("[PC|cmd] Weapon = null"));
+		UE_LOG(LogTemp, Display, TEXT("[PC|cmd] Magazine = <unavailable>"));
+		UE_LOG(LogTemp, Display, TEXT("[PC|cmd] Durability = <unavailable>"));
+		UE_LOG(LogTemp, Display, TEXT("[PC|cmd] IsBroken = <unavailable>"));
+	}
+	else
+	{
+		UCallsignWeaponDefinition* Def = Weapon->GetWeaponDefinition();
+		UE_LOG(LogTemp, Display, TEXT("[PC|cmd] Weapon = %s"), *GetNameSafe(Weapon));
+		if (Def)
+		{
+			UE_LOG(LogTemp, Display, TEXT("[PC|cmd] Magazine = %d / %d"),
+				Weapon->GetMagazineCurrent(), Def->MagazineSize);
+			UE_LOG(LogTemp, Display, TEXT("[PC|cmd] Durability = %d / %d"),
+				Weapon->GetDurabilityCurrent(), Def->DurabilityMax);
+		}
+		else
+		{
+			UE_LOG(LogTemp, Display, TEXT("[PC|cmd] Magazine = %d / <unavailable>"),
+				Weapon->GetMagazineCurrent());
+			UE_LOG(LogTemp, Display, TEXT("[PC|cmd] Durability = %d / <unavailable>"),
+				Weapon->GetDurabilityCurrent());
+		}
+		UE_LOG(LogTemp, Display, TEXT("[PC|cmd] IsBroken = %d"), Weapon->IsBroken() ? 1 : 0);
+	}
+
+	UE_LOG(LogTemp, Display, TEXT("[PC|cmd] Ammo Light = %d, Shell = %d, Heavy = %d"),
+		Inv->GetAmmoCount(ECallsignAmmoType::Light),
+		Inv->GetAmmoCount(ECallsignAmmoType::Shell),
+		Inv->GetAmmoCount(ECallsignAmmoType::Heavy));
 }
