@@ -301,6 +301,10 @@ bool ACallsignExfilPlayerController::TryShootAtActor(AActor* Target)
 	Request.From = P ? P->GetActorLocation() : FVector::ZeroVector;
 	Request.To = Target->GetActorLocation();
 	Request.Weapon = DefaultWeapon;
+	// Issue #22: target-aware LoS - resolver ignores both Instigator and
+	// TargetActor when tracing, so a clear shot to Target isn't blocked
+	// by Target's own capsule.
+	Request.TargetActor = Target;
 
 	// Phase 2 (ADR-003 §4.3): route through pawn's Inventory so the resolver
 	// consumes ammo/durability via the Phase 2 path. Phase 1 callers that need
