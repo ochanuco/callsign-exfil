@@ -2,6 +2,7 @@
 
 #include "CallsignTargeting.h"
 
+#include "CallsignHealthComponent.h"
 #include "CallsignRifleEnemy.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
@@ -21,8 +22,15 @@ namespace CallsignTargeting
 		float NearestDistSq = TNumericLimits<float>::Max();
 		for (TActorIterator<ACallsignRifleEnemy> It(World); It; ++It)
 		{
-			AActor* E = *It;
+			ACallsignRifleEnemy* E = *It;
 			if (!E)
+			{
+				continue;
+			}
+			// Skip dead enemies: targeting preview should jump to the next
+			// viable enemy after one goes down rather than stick to the
+			// corpse, and CsxShoot should never lock on to a dead actor.
+			if (E->HealthComp && E->HealthComp->bIsDead)
 			{
 				continue;
 			}

@@ -15,6 +15,7 @@ class UCameraComponent;
 class UInputAction;
 class ACallsignNode;
 class UCallsignInventoryComponent;
+class UCallsignHealthComponent;
 class UCallsignNodeMoverComponent;
 struct FInputActionValue;
 
@@ -58,9 +59,11 @@ protected:
 public:
 
 	/** Constructor */
-	ACallsignExfilCharacter();	
+	ACallsignExfilCharacter();
 
 protected:
+
+	virtual void BeginPlay() override;
 
 	/** Initialize input action bindings */
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
@@ -105,6 +108,10 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Callsign|Inventory")
 	TObjectPtr<UCallsignInventoryComponent> Inventory;
 
+	/** HP / death tracking. Phase 1+ utility; ADR-004 demos use this. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Callsign|Health")
+	TObjectPtr<UCallsignHealthComponent> HealthComp;
+
 	/** Smooth node-to-node interpolation; picked up by CallsignNodeMovement helper. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Callsign|Move")
 	TObjectPtr<UCallsignNodeMoverComponent> NodeMover;
@@ -124,5 +131,13 @@ public:
 	// ICallsignTurnParticipant
 	virtual void BeginTurn_Implementation() override;
 	virtual bool IsTurnFinished_Implementation() const override;
+
+	/** Routes UE damage events through HealthComp. */
+	virtual float TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent,
+		AController* EventInstigator, AActor* DamageCauser) override;
+
+private:
+	UFUNCTION()
+	void HandleDied(UCallsignHealthComponent* Comp);
 };
 
