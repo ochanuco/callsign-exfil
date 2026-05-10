@@ -2,6 +2,8 @@
 
 #include "CallsignTurnSystem.h"
 #include "CallsignTurnParticipant.h"
+#include "Engine/World.h"
+#include "HUD/CallsignMessageBus.h"
 
 namespace
 {
@@ -94,7 +96,10 @@ void UCallsignTurnSystem::BeginRound()
         // TODO Phase 2: derive phase per participant kind (Player vs Enemies).
         CurrentPhase = ECallsignTurnPhase::Player;
 
+        ++RoundCounter;
         UE_LOG(LogTemp, Display, TEXT("[Turn] BeginRound, %d participants"), TurnQueue.Num());
+        CallsignMsg::PushSystem(GetWorld(), FString::Printf(
+                TEXT("ラウンド %d 開始。"), RoundCounter));
 
         OnPhaseChanged.Broadcast(CurrentPhase);
 

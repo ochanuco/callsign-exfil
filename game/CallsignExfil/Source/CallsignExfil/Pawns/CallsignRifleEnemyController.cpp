@@ -7,6 +7,7 @@
 #include "Turn/CallsignTurnSystem.h"
 #include "Combat/CallsignCombatResolver.h"
 #include "LineOfSight/CallsignLineOfSightService.h"
+#include "HUD/CallsignMessageBus.h"
 #include "Inventory/CallsignInventoryComponent.h"
 #include "Weapon/CallsignWeaponInstanceObject.h"
 #include "Data/CallsignWeaponDefinition.h"
@@ -113,12 +114,27 @@ void ACallsignRifleEnemyController::BeginTurn_Implementation()
                                         const FCallsignShotResult Res = Combat->ResolveShot(Req);
                                         UE_LOG(LogTemp, Display, TEXT("[EnemyAI] shot: hit=%d damage=%.2f"),
                                                 Res.bHit ? 1 : 0, Res.DamageApplied);
+                                        if (Res.bHit)
+                                        {
+                                                CallsignMsg::PushEnemy(World, FString::Printf(
+                                                        TEXT("敵があなたを撃った。命中、%.0f ダメージ。"), Res.DamageApplied));
+                                        }
+                                        else
+                                        {
+                                                CallsignMsg::PushEnemy(World, TEXT("敵があなたを撃った。外れた。"));
+                                        }
                                         bDidShoot = true;
                                 }
                                 else
                                 {
                                         UE_LOG(LogTemp, Verbose, TEXT("[EnemyAI] skip shoot: los=%d hasWeapon=%d"),
                                                 LosRes.bHasLineOfSight ? 1 : 0, bHasUsableWeapon ? 1 : 0);
+                                        // ADR-003 §8: when LoS is clear but the weapon isn't usable,
+                                        // surface the broken/empty-state failure to the player.
+                                        if (LosRes.bHasLineOfSight && !bHasUsableWeapon)
+                                        {
+                                                CallsignMsg::PushEnemy(World, TEXT("敵が射撃を試みたが失敗した。"));
+                                        }
                                 }
                         }
                 }
@@ -153,6 +169,7 @@ void ACallsignRifleEnemyController::BeginTurn_Implementation()
                 ICallsignNodeOccupant::Execute_MoveToNode(Enemy, Pick);
                 UE_LOG(LogTemp, Display, TEXT("[EnemyAI] %s -> moved to %s"),
                         *GetNameSafe(Enemy), *GetNameSafe(Pick));
+                CallsignMsg::PushEnemy(World, TEXT("敵が移動した。"));
         }
         else
         {

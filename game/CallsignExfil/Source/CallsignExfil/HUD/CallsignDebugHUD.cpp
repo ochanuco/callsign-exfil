@@ -2,6 +2,8 @@
 
 #include "CallsignDebugHUD.h"
 
+#include "CallsignMessageBus.h"
+#include "Engine/Canvas.h"
 #include "Engine/World.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
@@ -26,7 +28,7 @@ void ACallsignDebugHUD::DrawHUD()
                 return;
         }
 
-        if (!bShowTurnInfo && !bShowLoSPreview)
+        if (!bShowTurnInfo && !bShowLoSPreview && !bShowMessageLog)
         {
                 return;
         }
@@ -66,44 +68,88 @@ void ACallsignDebugHUD::DrawHUD()
         }
 
         // ---- 2b. LoS preview block ----
-        if (!bShowLoSPreview)
+        if (bShowLoSPreview)
         {
-                return;
+                APlayerController* PC = GetOwningPlayerController();
+                APawn* P = PC ? PC->GetPawn() : nullptr;
+                UCallsignLineOfSightService* Los = World->GetSubsystem<UCallsignLineOfSightService>();
+
+                if (PC && P && Los)
+                {
+                        FVector CamLoc;
+                        FRotator CamRot;
+                        PC->GetPlayerViewPoint(CamLoc, CamRot);
+                        const FVector From = P->GetActorLocation();
+                        const FVector To = CamLoc + CamRot.Vector() * 5000.f;
+
+                        TArray<AActor*> Ignore = { P };
+                        const FCallsignLineOfSightResult Result = Los->Query(From, To, Ignore);
+
+                        // Project world-space endpoints to screen space. AHUD::Project returns
+                        // FVector where X/Y are screen coords (Z is depth, ignored here).
+                        const FVector FromScreen = Project(From);
+                        // TODO Phase 2: use actual hit point if blocked (Result.BlockingActor / hit location)
+                        const FVector ToScreen = Project(To);
+
+                        const FLinearColor Color = Result.bHasLineOfSight ? LosOkColor : LosBlockedColor;
+                        DrawLine(FromScreen.X, FromScreen.Y, ToScreen.X, ToScreen.Y, Color, 2.0f);
+                }
         }
 
-        APlayerController* PC = GetOwningPlayerController();
-        if (!PC)
+        // ---- 2c. Narrative message log (bottom-right) ----
+        // Roguelike-style scrolling overlay. Renders newest at the bottom,
+        // older entries stacked above. Each line fades over the last 1.5s of
+        // its lifetime. Phase 4+ will replace this with a UMG widget.
+        if (bShowMessageLog && Canvas)
         {
-                return;
+                if (UCallsignMessageBus* Bus = World->GetSubsystem<UCallsignMessageBus>())
+                {
+                        const TArray<FCallsignMessage> Active = Bus->GetActiveMessages();
+                        if (Active.Num() > 0)
+                        {
+                                const float Now = World->GetTimeSeconds();
+                                const float PanelWidth = 600.f;
+                                const float LineStep = 22.f;
+                                const float BottomMargin = 40.f;
+                                const float FadeWindow = 1.5f;
+
+                                // Newest entries are at the END of the array. Render newest
+                                // at the bottom and walk older entries upward.
+                                const float ClipX = Canvas->ClipX;
+                                const float ClipY = Canvas->ClipY;
+                                const float X = ClipX - PanelWidth;
+
+                                const int32 Count = Active.Num();
+                                for (int32 i = 0; i < Count; ++i)
+                                {
+                                        const FCallsignMessage& Msg = Active[Count - 1 - i];
+                                        const float Y = ClipY - BottomMargin - (i * LineStep);
+
+                                        // Stop when we've walked off the top of the viewport.
+                                        if (Y < 0.f)
+                                        {
+                                                break;
+                                        }
+
+                                        // Linear alpha fade across the last FadeWindow seconds of lifetime.
+                                        // Lifetime <= 0 means "forever" -> no fade.
+                                        float Alpha = 1.f;
+                                        if (Msg.Lifetime > 0.f)
+                                        {
+                                                const float Age = Now - Msg.SpawnedAt;
+                                                const float Remaining = Msg.Lifetime - Age;
+                                                if (Remaining < FadeWindow)
+                                                {
+                                                        Alpha = FMath::Clamp(Remaining / FadeWindow, 0.f, 1.f);
+                                                }
+                                        }
+
+                                        FLinearColor LineColor = Msg.Color;
+                                        LineColor.A *= Alpha;
+
+                                        DrawText(Msg.Text, LineColor, X, Y, /*Font*/ nullptr, /*Scale*/ 1.0f, false);
+                                }
+                        }
+                }
         }
-
-        APawn* P = PC->GetPawn();
-        if (!P)
-        {
-                return;
-        }
-
-        UCallsignLineOfSightService* Los = World->GetSubsystem<UCallsignLineOfSightService>();
-        if (!Los)
-        {
-                return;
-        }
-
-        FVector CamLoc;
-        FRotator CamRot;
-        PC->GetPlayerViewPoint(CamLoc, CamRot);
-        const FVector From = P->GetActorLocation();
-        const FVector To = CamLoc + CamRot.Vector() * 5000.f;
-
-        TArray<AActor*> Ignore = { P };
-        const FCallsignLineOfSightResult Result = Los->Query(From, To, Ignore);
-
-        // Project world-space endpoints to screen space. AHUD::Project returns
-        // FVector where X/Y are screen coords (Z is depth, ignored here).
-        const FVector FromScreen = Project(From);
-        // TODO Phase 2: use actual hit point if blocked (Result.BlockingActor / hit location)
-        const FVector ToScreen = Project(To);
-
-        const FLinearColor Color = Result.bHasLineOfSight ? LosOkColor : LosBlockedColor;
-        DrawLine(FromScreen.X, FromScreen.Y, ToScreen.X, ToScreen.Y, Color, 2.0f);
 }

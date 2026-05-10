@@ -8,6 +8,7 @@
 
 class UCallsignTurnSystem;
 class UCallsignLineOfSightService;
+class UCallsignMessageBus;
 
 /**
  *  Phase 1 PIE-time debug HUD.
@@ -45,6 +46,10 @@ public:
         /** Color used for the LoS preview line when LoS is blocked. */
         UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Callsign|HUD")
         FLinearColor LosBlockedColor = FLinearColor::Red;
+
+        /** Toggle the bottom-right roguelike-style narrative message log. */
+        UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Callsign|HUD")
+        bool bShowMessageLog = true;
 
 protected:
 
