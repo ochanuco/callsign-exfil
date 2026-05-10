@@ -16,10 +16,9 @@
 #include "Data/CallsignWeaponTypes.h"
 #include "HUD/CallsignMessageBus.h"
 #include "Inventory/CallsignInventoryComponent.h"
-#include "Kismet/GameplayStatics.h"
 #include "Node/CallsignNode.h"
 #include "Node/CallsignNodeOccupant.h"
-#include "Pawns/CallsignRifleEnemy.h"
+#include "Pawns/CallsignTargeting.h"
 #include "Turn/CallsignTurnParticipant.h"
 #include "Turn/CallsignTurnSystem.h"
 #include "Weapon/CallsignWeaponInstanceObject.h"
@@ -454,34 +453,10 @@ void ACallsignExfilPlayerController::CsxShoot()
 		return;
 	}
 
-	TArray<AActor*> FoundEnemies;
-	UGameplayStatics::GetAllActorsOfClass(World, ACallsignRifleEnemy::StaticClass(), FoundEnemies);
-
-	if (FoundEnemies.Num() == 0)
-	{
-		UE_LOG(LogTemp, Display, TEXT("[PC|cmd] CsxShoot: no enemy in world"));
-		return;
-	}
-
 	APawn* P = GetPawn();
 	const FVector MyLocation = P ? P->GetActorLocation() : FVector::ZeroVector;
 
-	AActor* NearestEnemy = nullptr;
-	float NearestDistSq = TNumericLimits<float>::Max();
-	for (AActor* Enemy : FoundEnemies)
-	{
-		if (!Enemy)
-		{
-			continue;
-		}
-		const float DistSq = (MyLocation - Enemy->GetActorLocation()).SizeSquared();
-		if (DistSq < NearestDistSq)
-		{
-			NearestDistSq = DistSq;
-			NearestEnemy = Enemy;
-		}
-	}
-
+	AActor* NearestEnemy = CallsignTargeting::FindNearestRifleEnemy(World, MyLocation);
 	if (!NearestEnemy)
 	{
 		UE_LOG(LogTemp, Display, TEXT("[PC|cmd] CsxShoot: no enemy in world"));
