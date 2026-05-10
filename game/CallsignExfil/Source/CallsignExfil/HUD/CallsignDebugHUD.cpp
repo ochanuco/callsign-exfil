@@ -28,7 +28,7 @@ void ACallsignDebugHUD::DrawHUD()
                 return;
         }
 
-        if (!bShowTurnInfo && !bShowLoSPreview && !bShowMessageLog)
+        if (!bShowTurnInfo && !bShowLoSPreview && !bShowMessageLog && !bShowKeyHelp)
         {
                 return;
         }
@@ -166,6 +166,56 @@ void ACallsignDebugHUD::DrawHUD()
                                         DrawText(Msg.Text, LineColor, X, Y, /*Font*/ nullptr, TextScale, false);
                                 }
                         }
+                }
+        }
+
+        // ---- 2d. Key help panel (top-right) ----
+        // Static reference of the demo key bindings so the player doesn't have to remember
+        // what 1/2/3/4 do. Phase 4+ replaces this with a UMG widget; for now we draw a
+        // simple framed panel with the same style as the message log.
+        if (bShowKeyHelp && Canvas)
+        {
+                struct FKeyHint
+                {
+                        const TCHAR* Key;
+                        const TCHAR* Label;
+                };
+                static const FKeyHint Hints[] = {
+                        { TEXT("[1]"), TEXT("ステータス") },
+                        { TEXT("[2]"), TEXT("射撃") },
+                        { TEXT("[3]"), TEXT("リロード") },
+                        { TEXT("[4]"), TEXT("ターン終了") },
+                };
+                static constexpr int32 HintCount = sizeof(Hints) / sizeof(Hints[0]);
+
+                const float TextScale = 2.0f;
+                const float LineStep = 44.f;
+                const float PanelWidth = 440.f;
+                const float TopMargin = 30.f;
+                const float RightMargin = 30.f;
+                const float PanelPadding = 12.f;
+                const float TextLeftInset = 16.f;
+                const FLinearColor PanelBgColor(0.f, 0.f, 0.f, 0.65f);
+                const FLinearColor PanelBorderColor(0.4f, 0.4f, 0.4f, 0.8f);
+                const FLinearColor KeyColor(1.0f, 0.85f, 0.3f, 1.0f);   // amber for the key bracket
+                const FLinearColor LabelColor(1.0f, 1.0f, 1.0f, 1.0f);  // white for the action label
+
+                const float ClipX = Canvas->ClipX;
+                const float PanelX = ClipX - RightMargin - PanelWidth - (2.f * PanelPadding);
+                const float PanelY = TopMargin;
+                const float PanelW = PanelWidth + (2.f * PanelPadding);
+                const float PanelH = (HintCount * LineStep) + (2.f * PanelPadding);
+                DrawRect(PanelBgColor, PanelX, PanelY, PanelW, PanelH);
+                DrawLine(PanelX, PanelY, PanelX + PanelW, PanelY, PanelBorderColor, 1.5f);
+                DrawLine(PanelX, PanelY + PanelH, PanelX + PanelW, PanelY + PanelH, PanelBorderColor, 1.5f);
+
+                const float TextX = PanelX + PanelPadding + TextLeftInset;
+                for (int32 i = 0; i < HintCount; ++i)
+                {
+                        const float Y = PanelY + PanelPadding + (i * LineStep);
+                        DrawText(Hints[i].Key, KeyColor, TextX, Y, /*Font*/ nullptr, TextScale, false);
+                        // Offset the label past the key bracket so they line up in two columns.
+                        DrawText(Hints[i].Label, LabelColor, TextX + 110.f, Y, /*Font*/ nullptr, TextScale, false);
                 }
         }
 }
