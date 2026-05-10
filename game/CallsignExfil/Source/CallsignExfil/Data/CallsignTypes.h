@@ -9,6 +9,7 @@
 #include "CallsignTypes.generated.h"
 
 class UCallsignWeaponDefinition;
+class UCallsignInventoryComponent;
 
 /**
  *  Phase of the round-based turn loop.
@@ -133,6 +134,15 @@ struct FCallsignShotRequest
         /** Weapon definition used to resolve damage and LoS rules. */
         UPROPERTY(BlueprintReadWrite, Category = "Callsign|Combat")
         TObjectPtr<UCallsignWeaponDefinition> Weapon = nullptr;
+
+        /**
+         *  Phase 2 (ADR-003 §3.2 / §4.3): optional inventory reference.
+         *  When set, UCallsignCombatResolver consumes ammo / magazine / durability
+         *  via this inventory before applying damage. Phase 1 callers leave this
+         *  null and the resolver falls through to the Phase 1 path.
+         */
+        UPROPERTY(BlueprintReadWrite, Category = "Callsign|Combat")
+        TWeakObjectPtr<UCallsignInventoryComponent> Inventory;
 };
 
 /**
