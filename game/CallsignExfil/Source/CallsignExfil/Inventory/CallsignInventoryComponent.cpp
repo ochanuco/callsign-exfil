@@ -66,15 +66,17 @@ bool UCallsignInventoryComponent::ConsumeShotForCurrentWeapon()
 
         const ECallsignAmmoType AmmoType = Def->AmmoType;
         const bool bUsesPool = Def->bUsesAmmoPool;
+        const int32 RequiredShots = Def->ShotsPerAction;
 
-        // Step 2: pool check (if applicable). Rescue handgun (bUsesAmmoPool=false) skips this.
+        // Step 2: pool sufficiency check (if applicable). Rescue handgun (bUsesAmmoPool=false) skips this.
         if (bUsesPool)
         {
-                const int32 PoolNow = AmmoPool.FindRef(AmmoType);
-                if (PoolNow <= 0)
+                const int32* PoolPtr = AmmoPool.Find(AmmoType);
+                const int32 PoolNow = PoolPtr ? *PoolPtr : 0;
+                if (PoolNow < RequiredShots)
                 {
-                        UE_LOG(LogTemp, Display, TEXT("[Inventory] ConsumeShotForCurrentWeapon rejected: empty pool type=%d"),
-                                (int32)AmmoType);
+                        UE_LOG(LogTemp, Display, TEXT("[Inventory] ConsumeShot: insufficient pool (%d < %d for %d type)"),
+                                PoolNow, RequiredShots, (int32)AmmoType);
                         return false;
                 }
         }
@@ -86,17 +88,13 @@ bool UCallsignInventoryComponent::ConsumeShotForCurrentWeapon()
                 return false;
         }
 
-        // Phase 2: pool decrement is per-action (= ShotsPerAction). Phase 3 may revisit.
+        // Phase 2: pool decrement is per-action (= ShotsPerAction). Sufficiency was checked above.
         if (bUsesPool)
         {
                 int32& PoolRef = AmmoPool.FindOrAdd(AmmoType);
-                PoolRef -= Def->ShotsPerAction;
-                if (PoolRef < 0)
-                {
-                        PoolRef = 0;
-                }
+                PoolRef -= RequiredShots;
                 UE_LOG(LogTemp, Display, TEXT("[Inventory] pool type=%d -%d -> %d"),
-                        (int32)AmmoType, Def->ShotsPerAction, PoolRef);
+                        (int32)AmmoType, RequiredShots, PoolRef);
         }
 
         return true;
