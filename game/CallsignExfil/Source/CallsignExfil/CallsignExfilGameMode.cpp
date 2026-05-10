@@ -2,13 +2,13 @@
 
 #include "CallsignExfilGameMode.h"
 #include "Turn/CallsignTurnSystem.h"
+#include "Turn/CallsignTurnParticipant.h"
 #include "Engine/World.h"
-#include "GameFramework/PlayerController.h"
-#include "GameFramework/Pawn.h"
+#include "Kismet/GameplayStatics.h"
 
 ACallsignExfilGameMode::ACallsignExfilGameMode()
 {
-	// stub
+	// Default pawn class is set in derived BP (template default).
 }
 
 void ACallsignExfilGameMode::BeginPlay()
@@ -18,26 +18,32 @@ void ACallsignExfilGameMode::BeginPlay()
 	UWorld* World = GetWorld();
 	if (!World)
 	{
+		UE_LOG(LogTemp, Error, TEXT("[GameMode] BeginPlay: no World"));
 		return;
 	}
 
-	UCallsignTurnSystem* TurnSystem = World->GetSubsystem<UCallsignTurnSystem>();
-	if (!TurnSystem)
+	UCallsignTurnSystem* TurnSys = World->GetSubsystem<UCallsignTurnSystem>();
+	if (!TurnSys)
 	{
+		UE_LOG(LogTemp, Error, TEXT("[GameMode] BeginPlay: UCallsignTurnSystem subsystem missing"));
 		return;
 	}
 
-	// Register the player pawn (if already possessed) so it participates in
-	// the turn loop. Enemies register themselves via their AAIController on
-	// possession.
-	if (APlayerController* PC = World->GetFirstPlayerController())
+	// Discover all turn participants in the level (player pawn, enemies, etc.).
+	TArray<AActor*> Participants;
+	UGameplayStatics::GetAllActorsWithInterface(this, UCallsignTurnParticipant::StaticClass(), Participants);
+
+	for (AActor* Actor : Participants)
 	{
-		if (APawn* PlayerPawn = PC->GetPawn())
+		if (Actor)
 		{
-			TurnSystem->RegisterParticipant(PlayerPawn);
+			TurnSys->RegisterParticipant(Actor);
 		}
 	}
 
-	// TODO Phase 1 impl: explicitly call BeginRound() once all participants
-	// (player + enemies) are registered, and wire up turn flow signals.
+	UE_LOG(LogTemp, Display, TEXT("[GameMode] Registered %d participants"), Participants.Num());
+
+	TurnSys->BeginRound();
+
+	UE_LOG(LogTemp, Display, TEXT("[GameMode] BeginRound complete; first=%s"), *GetNameSafe(TurnSys->GetCurrentParticipant()));
 }

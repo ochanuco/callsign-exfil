@@ -45,6 +45,10 @@ public:
         UFUNCTION(BlueprintCallable, Category = "Callsign|Turn")
         void EndCurrentTurn();
 
+        // UWorldSubsystem
+        virtual void Initialize(FSubsystemCollectionBase& Collection) override;
+        virtual void Deinitialize() override;
+
         /** Returns the actor whose turn is currently active, or nullptr. */
         UFUNCTION(BlueprintCallable, Category = "Callsign|Turn")
         AActor* GetCurrentParticipant() const;
