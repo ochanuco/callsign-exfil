@@ -7,6 +7,7 @@
 #include "Node/CallsignNode.h"
 #include "Node/CallsignNodeOccupant.h"
 #include "Pawns/CallsignRifleEnemy.h"
+#include "HUD/CallsignMessageBus.h"
 #include "Inventory/CallsignInventoryComponent.h"
 #include "Weapon/CallsignWeaponInstanceObject.h"
 #include "Data/CallsignWeaponDefinition.h"
@@ -191,6 +192,10 @@ void ACallsignExfilGameMode::SpawnPhase1Demo()
 	}
 
 	UE_LOG(LogTemp, Display, TEXT("[GameMode] Phase1Demo spawned: 9 nodes, 1 enemy at corner, player on center"));
+
+	// Phase 2 demo: surface the lifecycle event to the on-screen message log
+	// once after both pawns are equipped (per-pawn equip logs stay in UE_LOG only).
+	CallsignMsg::PushSystem(World, TEXT("作戦区域に降下。装備を確認してください。"));
 }
 
 void ACallsignExfilGameMode::EquipPhase2DemoLoadout(APawn* Pawn, bool bIsEnemy)

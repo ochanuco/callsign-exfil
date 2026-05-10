@@ -80,6 +80,14 @@ protected:
         UPROPERTY()
         ECallsignTurnPhase CurrentPhase = ECallsignTurnPhase::Player;
 
+        /**
+         *  Monotonic round counter used by the narrative message log.
+         *  Incremented inside BeginRound() before broadcasting so message log
+         *  output reads "ラウンド N 開始。" on every wrap.
+         */
+        UPROPERTY()
+        int32 RoundCounter = 0;
+
 private:
 
         /** Internal helper to broadcast OnTurnBegin for the current index. */
