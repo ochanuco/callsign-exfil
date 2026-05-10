@@ -143,6 +143,17 @@ struct FCallsignShotRequest
          */
         UPROPERTY(BlueprintReadWrite, Category = "Callsign|Combat")
         TWeakObjectPtr<UCallsignInventoryComponent> Inventory;
+
+        /**
+         *  Phase 2 (issue #22): optional target actor. When set, the Phase 2 branch
+         *  in UCallsignCombatResolver adds this actor to the LoS IgnoreActors list
+         *  so a trace ending on the intended target is treated as LoS-clear (instead
+         *  of being misread as "blocked by the target's own capsule"). Also used as
+         *  the victim for damage application when LoS is clear. Phase 1 callers
+         *  leave this null and behavior is unchanged.
+         */
+        UPROPERTY(BlueprintReadWrite, Category = "Callsign|Combat")
+        TWeakObjectPtr<AActor> TargetActor;
 };
 
 /**
