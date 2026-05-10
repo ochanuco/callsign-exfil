@@ -52,6 +52,9 @@ void ACallsignRifleEnemy::BeginTurn_Implementation()
         {
                 UE_LOG(LogTemp, Warning, TEXT("[Pawn] %s BeginTurn: no ACallsignRifleEnemyController possessing this pawn"),
                         *GetNameSafe(this));
+                // Fail-close: nothing else will end this turn, so the turn-system
+                // would stall on IsTurnFinished. Mark finished so the round advances.
+                bTurnFinished = true;
         }
 }
 
