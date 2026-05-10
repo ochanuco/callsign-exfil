@@ -17,24 +17,37 @@ Xcode の必要バージョンは UE 5.7 系のリリースノートで確認す
 
 ## 1. Xcode と Command Line Tools
 
-UE5 の C++ ビルドには Xcode が必要。UE 5.7 系のリリースノートで指定されたバージョンに合わせる (近年は Xcode 16 系)。
+UE5 の C++ ビルドには **フル版の Xcode.app** が必要 (Command Line Tools 単体では不足)。UE 5.7 系のリリースノートで指定されたバージョンに合わせる。
+
+**ハマりポイント**: `xcode-select --install` だけだと `/Library/Developer/CommandLineTools` のみが入り、UE Project 作成時に "Xcode が見つかりません" エラーになる。必ず App Store の Xcode.app をインストールすること。
 
 ```bash
-# 1-1. App Store から Xcode をインストール (GUI)
+# 1-1. App Store から Xcode.app をインストール (GUI、~15GB、回線次第で30分〜2時間)
 #      https://apps.apple.com/app/xcode/id497799835
+#      インストールが完了するまで以降のステップは進めないこと
 
-# 1-2. 起動して License に同意
-sudo xcodebuild -license accept
+# 1-2. Xcode.app を1度起動して "Install additional required components" に同意
+#      コンポーネント追加が完了したら閉じてOK
 
-# 1-3. Command Line Tools
-xcode-select --install
-
-# 1-4. アクティブな developer dir を Xcode 本体に向ける
+# 1-3. アクティブな developer dir を Xcode 本体に向ける (この順序が重要)
+#      ここを先にやらないと 1-4 の license accept が CLT を見て失敗する
 sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
 
-# 1-5. 確認
-xcodebuild -version
+# 1-4. License 同意
+sudo xcodebuild -license accept
+
+# 1-5. 確認 (どちらもエラーなく出ればOK)
+xcode-select -p           # → /Applications/Xcode.app/Contents/Developer であること
+xcodebuild -version       # → Xcode 26.x など
 clang --version
+
+# 1-6. Metal Toolchain を別途DL (Xcode 26+ で必須、UEのMacシェーダコンパイルに必要)
+#      これを忘れると New Project 時に
+#      "cannot execute tool 'metal' due to missing Metal Toolchain" エラーで失敗する
+sudo xcodebuild -downloadComponent MetalToolchain
+
+# 1-7. Command Line Tools が単体で必要な場合のみ (Xcode 同梱の CLT で通常は十分)
+# xcode-select --install
 ```
 
 ---
@@ -189,6 +202,7 @@ git status      # LFS 対象が "Git LFS" として識別される
 | 症状 | 対策 |
 |------|------|
 | `xcrun: error: invalid active developer path` | `sudo xcode-select -s /Applications/Xcode.app/Contents/Developer` |
+| `cannot execute tool 'metal' due to missing Metal Toolchain` | `sudo xcodebuild -downloadComponent MetalToolchain` (Xcode 26+ で必須) |
 | `git lfs install` 後も普通の Git として add される | `.gitattributes` がコミットされた状態で `git add` する。先に `.gitattributes` をコミットしてから資産を add する |
 | Editor 起動が極端に遅い (初回 30 分以上) | Shader コンパイル中。`Saved/Logs/` の進捗を見る。M1/M2 でも初回は時間がかかる |
 | `Build failed` で Apple Silicon 向けビルドが落ちる | UE 5.7.4 を使っているか確認。古い 5.0/5.1 は Apple Silicon ネイティブビルドが不安定 |
