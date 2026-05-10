@@ -125,6 +125,10 @@ FCallsignShotResult UCallsignCombatResolver::ResolveShot(const FCallsignShotRequ
         // Visual feedback: draw a tracer line in the world for ~0.6s so the
         // shot is observable beyond the message log. Player shots = cyan,
         // enemy shots = red. Misses use a duller tint.
+        //
+        // SDPG_Foreground bypasses depth testing so the tracer is not occluded
+        // by the player's own capsule (player shots originate inside the player
+        // pawn so a depth-tested line is invisible from the third-person camera).
         if (World)
         {
                 const APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(this, 0);
@@ -139,12 +143,18 @@ FCallsignShotResult UCallsignCombatResolver::ResolveShot(const FCallsignShotRequ
                         TracerColor = Result.bHit ? FColor(255, 80, 80) : FColor(220, 140, 140);
                 }
                 DrawDebugLine(World, Request.From, Request.To, TracerColor,
-                        /*bPersistent*/ false, /*Lifetime*/ 0.6f, /*DepthPriority*/ 0, /*Thickness*/ 4.f);
+                        /*bPersistent*/ false, /*Lifetime*/ 0.6f,
+                        /*DepthPriority*/ SDPG_Foreground, /*Thickness*/ 6.f);
+                // Origin marker on the shooter so the line clearly anchors at the source.
+                DrawDebugSphere(World, Request.From, /*Radius*/ 18.f, /*Segments*/ 10,
+                        TracerColor, /*bPersistent*/ false, /*Lifetime*/ 0.6f,
+                        /*DepthPriority*/ SDPG_Foreground, /*Thickness*/ 2.f);
                 if (Result.bHit)
                 {
-                        // Small impact marker at the destination.
+                        // Impact marker at the destination.
                         DrawDebugSphere(World, Request.To, /*Radius*/ 30.f, /*Segments*/ 12,
-                                TracerColor, /*bPersistent*/ false, /*Lifetime*/ 0.6f, /*DepthPriority*/ 0, /*Thickness*/ 2.f);
+                                TracerColor, /*bPersistent*/ false, /*Lifetime*/ 0.6f,
+                                /*DepthPriority*/ SDPG_Foreground, /*Thickness*/ 2.f);
                 }
         }
 
