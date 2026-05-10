@@ -12,7 +12,11 @@
 #include "Inventory/CallsignInventoryComponent.h"
 #include "Weapon/CallsignWeaponInstanceObject.h"
 #include "Data/CallsignWeaponDefinition.h"
+#include "Components/StaticMeshComponent.h"
+#include "Engine/StaticMesh.h"
+#include "Engine/StaticMeshActor.h"
 #include "Engine/World.h"
+#include "Materials/MaterialInterface.h"
 #include "TimerManager.h"
 #include "Kismet/GameplayStatics.h"
 
@@ -141,6 +145,13 @@ void ACallsignExfilGameMode::SpawnPhase1Demo()
 	const float Spacing = 300.f;
 	const FVector Origin = PlayerPawn->GetActorLocation();
 
+	// Drop the floor + cover dressing first so node tiles spawn on top of
+	// the visible ground rather than into an empty void.
+	if (bSpawnEnvironmentDressing)
+	{
+		SpawnEnvironmentDressing(Origin);
+	}
+
 	UClass* NodeClass = Phase1NodeClass.Get() ? Phase1NodeClass.Get() : ACallsignNode::StaticClass();
 	UClass* EnemyClass = Phase1EnemyClass.Get() ? Phase1EnemyClass.Get() : ACallsignRifleEnemy::StaticClass();
 
@@ -213,6 +224,91 @@ void ACallsignExfilGameMode::SpawnPhase1Demo()
 	// Phase 2 demo: surface the lifecycle event to the on-screen message log
 	// once after both pawns are equipped (per-pawn equip logs stay in UE_LOG only).
 	CallsignMsg::PushSystem(World, TEXT("作戦区域に降下。装備を確認してください。"));
+}
+
+void ACallsignExfilGameMode::SpawnEnvironmentDressing(const FVector& Origin)
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	// Engine stock primitives — always available, no asset authoring required.
+	UStaticMesh* CubeMesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube"));
+	if (!CubeMesh)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[GameMode] EnvironmentDressing: /Engine/BasicShapes/Cube not found, skipping"));
+		return;
+	}
+	UMaterialInterface* GridMat = LoadObject<UMaterialInterface>(
+		nullptr, TEXT("/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial"));
+
+	FActorSpawnParameters Params;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+	auto SpawnBlock = [&](const FVector& Loc, const FVector& Scale, UMaterialInterface* Mat) -> AStaticMeshActor*
+	{
+		AStaticMeshActor* A = World->SpawnActor<AStaticMeshActor>(AStaticMeshActor::StaticClass(),
+			Loc, FRotator::ZeroRotator, Params);
+		if (!A)
+		{
+			return nullptr;
+		}
+		// Mobility must be Movable before SetActorScale3D / SetStaticMesh on a
+		// runtime-spawned StaticMeshActor (default is Static).
+		A->SetMobility(EComponentMobility::Movable);
+		if (UStaticMeshComponent* Comp = A->GetStaticMeshComponent())
+		{
+			Comp->SetStaticMesh(CubeMesh);
+			if (Mat)
+			{
+				Comp->SetMaterial(0, Mat);
+			}
+		}
+		A->SetActorScale3D(Scale);
+		return A;
+	};
+
+	// Engine cube is 100x100x100. Floor slab: 40m x 40m, 10 cm thick. Place it
+	// just below the node visuals (nodes sit at Origin.Z - 90).
+	const float FloorThicknessZ = 0.1f;
+	const FVector FloorCenter(Origin.X, Origin.Y, Origin.Z - 100.f);
+	SpawnBlock(FloorCenter, FVector(40.f, 40.f, FloorThicknessZ), GridMat);
+
+	// Top of floor in world space, used to seat cover blocks on the ground.
+	const float FloorTopZ = FloorCenter.Z + 50.f * FloorThicknessZ;
+
+	// Cover blocks scattered between/around the 3x3 grid. Offsets are in cm
+	// relative to Origin (grid center). Each entry: (X,Y,Scale). Picked by
+	// hand so a few blocks sit between adjacent tiles for the LoS pre-check
+	// to have something to bite on.
+	struct FCoverDef { FVector OffsetXY; FVector Scale; };
+	const FCoverDef Covers[] = {
+		// Mid-edge crates between tiles in the inner ring.
+		{ FVector(-150.f, -300.f, 0.f), FVector(0.6f, 0.6f, 1.4f) },
+		{ FVector( 300.f, -150.f, 0.f), FVector(0.5f, 0.5f, 1.5f) },
+		{ FVector( 150.f,  300.f, 0.f), FVector(0.6f, 0.6f, 1.4f) },
+		{ FVector(-300.f,  150.f, 0.f), FVector(0.5f, 0.5f, 1.5f) },
+		// Long low sandbag-like wall on one flank.
+		{ FVector(-450.f,    0.f, 0.f), FVector(0.5f, 2.0f, 0.7f) },
+		// Two outer pillars to give the skybox something to frame against.
+		{ FVector(-650.f, -650.f, 0.f), FVector(0.3f, 0.3f, 3.5f) },
+		{ FVector( 650.f,  650.f, 0.f), FVector(0.3f, 0.3f, 3.5f) },
+	};
+
+	int32 BlockCount = 0;
+	for (const FCoverDef& C : Covers)
+	{
+		const float HalfHeight = 50.f * C.Scale.Z;
+		const FVector Loc(Origin.X + C.OffsetXY.X, Origin.Y + C.OffsetXY.Y, FloorTopZ + HalfHeight);
+		if (SpawnBlock(Loc, C.Scale, /*Mat*/ nullptr))
+		{
+			++BlockCount;
+		}
+	}
+
+	UE_LOG(LogTemp, Display, TEXT("[GameMode] EnvironmentDressing: floor + %d cover blocks"), BlockCount);
 }
 
 void ACallsignExfilGameMode::EquipPhase2DemoLoadout(APawn* Pawn, bool bIsEnemy)

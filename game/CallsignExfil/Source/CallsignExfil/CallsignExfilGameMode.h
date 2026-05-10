@@ -28,6 +28,15 @@ public:
 	UPROPERTY(EditDefaultsOnly, Category = "Callsign|Phase1Demo")
 	bool bAutoSpawnPhase1Demo = true;
 
+	/**
+	 *  When true, SpawnPhase1Demo also drops a floor + scattered cover blocks
+	 *  so the playable area looks like a place instead of "9 boards floating
+	 *  in a void". Visual only — the cover blocks have collision, so the
+	 *  existing CombatResolver line trace will treat them as LoS blockers.
+	 */
+	UPROPERTY(EditDefaultsOnly, Category = "Callsign|Phase1Demo")
+	bool bSpawnEnvironmentDressing = true;
+
 	/** When true, BeginPlay starts a timer that auto-ends the current turn. */
 	UPROPERTY(EditDefaultsOnly, Category = "Callsign|Phase1Demo")
 	bool bAutoAdvanceTurns = true;
@@ -56,6 +65,13 @@ private:
 
 	/** Spawns a 3x3 grid of nodes around the player + one enemy at the corner. */
 	void SpawnPhase1Demo();
+
+	/**
+	 *  Drops a floor slab + a handful of cover blocks around the grid for
+	 *  visual context. Uses Engine's stock Cube + WorldGridMaterial so no
+	 *  authored assets are required. Origin is the grid center (player loc).
+	 */
+	void SpawnEnvironmentDressing(const FVector& Origin);
 
 	/**
 	 *  Phase 2 demo helper: builds a transient UCallsignWeaponDefinition + WeaponInstanceObject
