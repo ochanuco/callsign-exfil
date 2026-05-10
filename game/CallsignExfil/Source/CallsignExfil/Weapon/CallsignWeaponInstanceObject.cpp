@@ -51,17 +51,19 @@ bool UCallsignWeaponInstanceObject::ConsumeShot()
         const bool bInfMag = Def->bHasInfiniteMagazine;
         const bool bInfDur = Def->bHasInfiniteDurability;
 
-        // 2. magazine empty check (ADR-003 §9: branch on flag before arithmetic)
-        if (!bInfMag && State.MagazineCurrent <= 0)
+        // 2. magazine sufficiency check (ADR-003 §9: branch on flag before arithmetic)
+        const int32 RequiredShots = Def->ShotsPerAction;
+        if (!bInfMag && State.MagazineCurrent < RequiredShots)
         {
-                UE_LOG(LogTemp, Display, TEXT("[Weapon] ConsumeShot rejected: empty magazine"));
+                UE_LOG(LogTemp, Verbose, TEXT("[Weapon] %s ConsumeShot: insufficient magazine (%d < %d)"),
+                        *GetName(), State.MagazineCurrent, RequiredShots);
                 return false;
         }
 
         // 3. magazine consumption
         if (!bInfMag)
         {
-                State.MagazineCurrent -= Def->ShotsPerAction;
+                State.MagazineCurrent -= RequiredShots;
                 if (State.MagazineCurrent < 0)
                 {
                         State.MagazineCurrent = 0;
