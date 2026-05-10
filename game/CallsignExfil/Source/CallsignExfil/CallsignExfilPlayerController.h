@@ -141,4 +141,20 @@ public:
 	/** Ends the player's current turn via the world TurnSystem. */
 	UFUNCTION(BlueprintCallable, Category = "Callsign|Turn")
 	void EndTurn();
+
+	/** Console: shoot the nearest enemy in range with the equipped weapon. */
+	UFUNCTION(Exec)
+	void CsxShoot();
+
+	/** Console: reload the equipped weapon. No turn cost on no-op. */
+	UFUNCTION(Exec)
+	void CsxReload();
+
+	/** Console: end the player turn (only valid when it's actually the player's turn). */
+	UFUNCTION(Exec)
+	void CsxEndTurn();
+
+	/** Console: dump inventory + turn state to the log (no game effect). */
+	UFUNCTION(Exec)
+	void CsxStatus();
 };
