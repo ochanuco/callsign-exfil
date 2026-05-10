@@ -66,6 +66,13 @@ public:
         UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Callsign|HUD")
         bool bShowSupportPreview = true;
 
+        /**
+         *  Player HP bar (top-left under turn info) + small floating HP
+         *  text above each rifle enemy's head.
+         */
+        UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Callsign|HUD")
+        bool bShowHealthOverlay = true;
+
 protected:
 
         virtual void BeginPlay() override;
