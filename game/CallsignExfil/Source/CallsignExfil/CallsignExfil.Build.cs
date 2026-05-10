@@ -24,7 +24,14 @@ public class CallsignExfil : ModuleRules
 		PrivateDependencyModuleNames.AddRange(new string[] { });
 
 		PublicIncludePaths.AddRange(new string[] {
-			"CallsignExfil"
+			"CallsignExfil",
+			"CallsignExfil/Data",
+			"CallsignExfil/Turn",
+			"CallsignExfil/Node",
+			"CallsignExfil/Camera",
+			"CallsignExfil/LineOfSight",
+			"CallsignExfil/Combat",
+			"CallsignExfil/Pawns"
 		});
 
 		// Uncomment if you are using Slate UI
