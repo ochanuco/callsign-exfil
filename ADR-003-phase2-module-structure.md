@@ -186,14 +186,25 @@ Phase 1 の DAG (ADR-002 §5) を維持しつつ、`Inventory` / `Weapon` を追
 
 ### 9. 救済ハンドガンの扱い
 
-Pawn の Inventory 構築時に必ず `Rescue` スロットへ装着する。Data Asset としての特例パラメータは以下とする。
+Pawn の Inventory 構築時に必ず `Rescue` スロットへ装着する。「無限」を `TNumericLimits<int32>::Max()` のような巨大値で表現するのは UI でのパーセンテージ計算や残量加算で算術オーバーフローを招くため避ける。代わりに **明示フラグ** で無限を表現し、算術処理の前段で必ず分岐する。
+
+Data Asset としての特例パラメータは以下とする。
 
 - `bIsRescue = true`
+- `bHasInfiniteDurability = true`
+- `bHasInfiniteMagazine = true`
 - `DurabilityCostPerAction = 0`
-- `DurabilityMax = TNumericLimits<int32>::Max()` (耐久バー表示は UI 側で「∞」表記に切替)
-- `MagazineSize = TNumericLimits<int32>::Max()` (リロード操作はノーオペで弾かれる)
+- `DurabilityMax = 1` (フラグ true の場合は数値自体を参照しないが、デフォルト 0 でゼロ除算を踏まないよう正の値を入れておく)
+- `MagazineSize = 1` (同上)
 - `bUsesAmmoPool = false` (`AmmoType=Light` のままだが弾薬プールを参照しない)
 - `WeaponSlot = Rescue`
+
+実装上のルール:
+
+- `UCallsignWeaponInstanceObject::IsBroken()`: `bHasInfiniteDurability` true なら常に false を返す。`DurabilityCurrent` の演算より先に分岐する。
+- `UCallsignWeaponInstanceObject::ConsumeShot()` / `ApplyDurabilityCost()`: 同 flag true なら現在値を変えない。
+- `UCallsignInventoryComponent::Reload()`: `bHasInfiniteMagazine` true なら no-op で即時 return。タクティカル / ノーマルの分岐に入る前にチェックする。
+- UI 側の残量パーセンテージ表示は flag を見て「∞」または非表示に切り替える。`100 * Current / Max` の演算は flag false のときだけ通す。
 
 設計簡略化のため、Phase 2 では Light 弾薬プールを救済ハンドガンと AR で共有しないハードコード扱いを許容する。`bUsesAmmoPool=false` の分岐を Inventory・Combat 双方で素直に書く。
 
