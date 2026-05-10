@@ -2,6 +2,7 @@
 
 #include "CallsignDebugHUD.h"
 
+#include "CallsignExfilPlayerController.h"
 #include "CallsignMessageBus.h"
 #include "DrawDebugHelpers.h"
 #include "Engine/Canvas.h"
@@ -9,6 +10,7 @@
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
+#include "Node/CallsignNode.h"
 #include "Pawns/CallsignRifleEnemy.h"
 #include "Turn/CallsignTurnSystem.h"
 #include "LineOfSight/CallsignLineOfSightService.h"
@@ -144,6 +146,23 @@ void ACallsignDebugHUD::DrawHUD()
                                         /*YAxis*/ FVector(0.f, 1.f, 0.f), /*XAxis*/ FVector(1.f, 0.f, 0.f),
                                         /*bDrawAxis*/ false);
                         }
+
+                        // Hovered-adjacent-node highlight: when the cursor is over an
+                        // adjacent unoccupied node, ring it green to indicate clickability.
+                        if (ACallsignExfilPlayerController* CallsignPC = Cast<ACallsignExfilPlayerController>(PCT))
+                        {
+                                if (ACallsignNode* Hovered = CallsignPC->GetNodeUnderCursor())
+                                {
+                                        const bool bClickable = CallsignPC->CanMoveToNode(Hovered);
+                                        const FColor HoverColor = bClickable ? FColor(80, 240, 120) : FColor(220, 80, 80);
+                                        const FVector NodeLoc = Hovered->GetActorLocation();
+                                        DrawDebugCircle(World, NodeLoc, /*Radius*/ 110.f, /*Segments*/ 32,
+                                                HoverColor, /*bPersistent*/ false, /*Lifetime*/ 0.05f,
+                                                /*DepthPriority*/ SDPG_Foreground, /*Thickness*/ 4.f,
+                                                /*YAxis*/ FVector(0.f, 1.f, 0.f), /*XAxis*/ FVector(1.f, 0.f, 0.f),
+                                                /*bDrawAxis*/ false);
+                                }
+                        }
                 }
         }
 
@@ -236,6 +255,7 @@ void ACallsignDebugHUD::DrawHUD()
                         { TEXT("[2]"), TEXT("射撃") },
                         { TEXT("[3]"), TEXT("リロード") },
                         { TEXT("[4]"), TEXT("ターン終了") },
+                        { TEXT("[LMB]"), TEXT("隣接ノードへ移動") },
                 };
                 static constexpr int32 HintCount = sizeof(Hints) / sizeof(Hints[0]);
 

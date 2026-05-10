@@ -157,4 +157,10 @@ public:
 	/** Console: dump inventory + turn state to the log (no game effect). */
 	UFUNCTION(Exec)
 	void CsxStatus();
+
+	/** Mouse cursor → node click handler. Invokes TryMoveToNode if the hit node is adjacent + free. */
+	void HandleLeftClickToMoveNode();
+
+	/** Helper for HUD: returns the ACallsignNode currently under the mouse cursor (or nullptr). */
+	ACallsignNode* GetNodeUnderCursor() const;
 };

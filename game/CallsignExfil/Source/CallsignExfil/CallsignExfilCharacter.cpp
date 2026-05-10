@@ -35,8 +35,11 @@ ACallsignExfilCharacter::ACallsignExfilCharacter()
 	// instead of recompiling to adjust them
 	GetCharacterMovement()->JumpZVelocity = 500.f;
 	GetCharacterMovement()->AirControl = 0.35f;
-	GetCharacterMovement()->MaxWalkSpeed = 500.f;
-	GetCharacterMovement()->MinAnalogWalkSpeed = 20.f;
+	// Phase 1 turn-based: WASD free-movement is intentionally disabled. The
+	// player advances only via TryMoveToNode (mouse click on an adjacent node).
+	// MaxWalkSpeed=0 keeps capsule + camera intact but blocks the Move IMC.
+	GetCharacterMovement()->MaxWalkSpeed = 0.f;
+	GetCharacterMovement()->MinAnalogWalkSpeed = 0.f;
 	GetCharacterMovement()->BrakingDecelerationWalking = 2000.f;
 	GetCharacterMovement()->BrakingDecelerationFalling = 1500.0f;
 
