@@ -65,3 +65,29 @@ bool ACallsignExfilPlayerController::ShouldUseTouchControls() const
 	// are we on a mobile platform? Should we force touch?
 	return SVirtualJoystick::ShouldDisplayTouchInterface() || bForceTouchControls;
 }
+
+void ACallsignExfilPlayerController::SetMode(ECallsignControllerMode NewMode)
+{
+	if (NewMode == CurrentMode)
+	{
+		return;
+	}
+
+	CurrentMode = NewMode;
+
+	// TODO Phase 1 impl: actually swap input mapping contexts. We sketch the
+	// hookup below so the references are not stripped, but the full add/remove
+	// flow lands when input actions per mode are defined.
+	if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(GetLocalPlayer()))
+	{
+		if (NodeSelectIMC && AimIMC)
+		{
+			// Placeholder: in Phase 1 follow-up, remove the inactive IMC and add
+			// the active one with a stable priority. Swap depends on which
+			// mappings exist for each mode.
+			(void)Subsystem;
+		}
+	}
+
+	OnControllerModeChanged.Broadcast(NewMode);
+}

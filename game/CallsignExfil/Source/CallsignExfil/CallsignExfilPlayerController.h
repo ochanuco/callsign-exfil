@@ -4,10 +4,27 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerController.h"
+#include "UObject/ObjectPtr.h"
 #include "CallsignExfilPlayerController.generated.h"
 
 class UInputMappingContext;
 class UUserWidget;
+
+/**
+ *  Controller-side mode that mirrors ECallsignCameraMode but is owned by the
+ *  PlayerController. Drives input mapping context swaps and notifies the
+ *  shoulder camera component via delegate.
+ */
+UENUM(BlueprintType)
+enum class ECallsignControllerMode : uint8
+{
+	NodeSelect      UMETA(DisplayName = "NodeSelect"),
+	Aim             UMETA(DisplayName = "Aim"),
+	Idle            UMETA(DisplayName = "Idle")
+};
+
+/** Broadcast when the controller's mode changes; consumed by camera component. */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FCallsignOnControllerModeChanged, ECallsignControllerMode, NewMode);
 
 /**
  *  Basic PlayerController class for a third person game
@@ -40,6 +57,18 @@ protected:
 	UPROPERTY(EditAnywhere, Config, Category = "Input|Touch Controls")
 	bool bForceTouchControls = false;
 
+	/** IMC active while selecting a node. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Callsign|Input")
+	TObjectPtr<UInputMappingContext> NodeSelectIMC;
+
+	/** IMC active while aiming. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Callsign|Input")
+	TObjectPtr<UInputMappingContext> AimIMC;
+
+	/** Currently active controller mode. */
+	UPROPERTY(BlueprintReadOnly, Category = "Callsign|Input")
+	ECallsignControllerMode CurrentMode = ECallsignControllerMode::Idle;
+
 	/** Gameplay initialization */
 	virtual void BeginPlay() override;
 
@@ -49,4 +78,13 @@ protected:
 	/** Returns true if the player should use UMG touch controls */
 	bool ShouldUseTouchControls() const;
 
+public:
+
+	/** Switches the controller mode and notifies camera/IMC subsystems. */
+	UFUNCTION(BlueprintCallable, Category = "Callsign|Input")
+	void SetMode(ECallsignControllerMode NewMode);
+
+	/** Broadcast when the controller mode changes. */
+	UPROPERTY(BlueprintAssignable, Category = "Callsign|Input")
+	FCallsignOnControllerModeChanged OnControllerModeChanged;
 };

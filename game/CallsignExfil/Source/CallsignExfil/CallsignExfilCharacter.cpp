@@ -11,6 +11,9 @@
 #include "EnhancedInputSubsystems.h"
 #include "InputActionValue.h"
 #include "CallsignExfil.h"
+#include "Node/CallsignNode.h"
+#include "Node/CallsignNodeOccupant.h"
+#include "Turn/CallsignTurnParticipant.h"
 
 ACallsignExfilCharacter::ACallsignExfilCharacter()
 {
@@ -130,4 +133,27 @@ void ACallsignExfilCharacter::DoJumpEnd()
 {
 	// signal the character to stop jumping
 	StopJumping();
+}
+
+ACallsignNode* ACallsignExfilCharacter::GetCurrentNode_Implementation() const
+{
+	return CurrentNode;
+}
+
+void ACallsignExfilCharacter::MoveToNode_Implementation(ACallsignNode* TargetNode)
+{
+	CurrentNode = TargetNode;
+	// TODO Phase 1 impl: reposition the actor to the target node's transform
+	// (teleport for greybox, animated traversal later).
+}
+
+void ACallsignExfilCharacter::BeginTurn_Implementation()
+{
+	// Player turns are driven by the PlayerController; no work here in Phase 1.
+	bTurnFinished = false;
+}
+
+bool ACallsignExfilCharacter::IsTurnFinished_Implementation() const
+{
+	return bTurnFinished;
 }

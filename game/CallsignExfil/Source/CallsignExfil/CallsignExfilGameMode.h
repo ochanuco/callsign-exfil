@@ -15,9 +15,13 @@ class ACallsignExfilGameMode : public AGameModeBase
 	GENERATED_BODY()
 
 public:
-	
+
 	/** Constructor */
 	ACallsignExfilGameMode();
+
+protected:
+
+	virtual void BeginPlay() override;
 };
 
 

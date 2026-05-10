@@ -5,11 +5,15 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
 #include "Logging/LogMacros.h"
+#include "UObject/ObjectPtr.h"
+#include "Node/CallsignNodeOccupant.h"
+#include "Turn/CallsignTurnParticipant.h"
 #include "CallsignExfilCharacter.generated.h"
 
 class USpringArmComponent;
 class UCameraComponent;
 class UInputAction;
+class ACallsignNode;
 struct FInputActionValue;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
@@ -19,7 +23,7 @@ DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
  *  Implements a controllable orbiting camera
  */
 UCLASS(abstract)
-class ACallsignExfilCharacter : public ACharacter
+class ACallsignExfilCharacter : public ACharacter, public ICallsignNodeOccupant, public ICallsignTurnParticipant
 {
 	GENERATED_BODY()
 
@@ -92,5 +96,23 @@ public:
 
 	/** Returns FollowCamera subobject **/
 	FORCEINLINE class UCameraComponent* GetFollowCamera() const { return FollowCamera; }
+
+public:
+
+	/** Node currently occupied by the player. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Callsign|Node")
+	TObjectPtr<ACallsignNode> CurrentNode;
+
+	/** Tracks whether the player has finished their turn. */
+	UPROPERTY(BlueprintReadWrite, Category = "Callsign|Turn")
+	bool bTurnFinished = false;
+
+	// ICallsignNodeOccupant
+	virtual ACallsignNode* GetCurrentNode_Implementation() const override;
+	virtual void MoveToNode_Implementation(ACallsignNode* TargetNode) override;
+
+	// ICallsignTurnParticipant
+	virtual void BeginTurn_Implementation() override;
+	virtual bool IsTurnFinished_Implementation() const override;
 };
 
