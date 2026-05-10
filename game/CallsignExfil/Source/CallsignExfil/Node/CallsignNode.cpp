@@ -14,7 +14,14 @@ ACallsignNode::ACallsignNode()
 
         Visual = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Visual"));
         Visual->SetupAttachment(RootComponent);
-        Visual->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+        // QueryOnly + block on Visibility so the mouse cursor's
+        // GetHitResultUnderCursor trace can find the node, while staying out
+        // of physics simulation. Pawns teleport between nodes (no walking
+        // collision needed), so blocking only the Visibility channel is
+        // sufficient.
+        Visual->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+        Visual->SetCollisionResponseToAllChannels(ECR_Ignore);
+        Visual->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
 
         // Phase 1 default visual: engine basic cube scaled to a tile-shaped slab.
         // Designers can still override the StaticMesh in BP/level if desired.
