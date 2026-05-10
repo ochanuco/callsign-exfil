@@ -10,6 +10,7 @@
 #include "CallsignRifleEnemy.generated.h"
 
 class ACallsignNode;
+class UStaticMeshComponent;
 
 /**
  *  Phase 1 sole enemy archetype. Implements both NodeOccupant and TurnParticipant
@@ -32,6 +33,10 @@ public:
         /** Tracks whether this enemy has finished its turn. */
         UPROPERTY(BlueprintReadWrite, Category = "Callsign|Turn")
         bool bTurnFinished = false;
+
+        /** Phase 1 debug visual: cube child mesh so the enemy is visible without an SK mesh. */
+        UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Callsign|Visual")
+        TObjectPtr<UStaticMeshComponent> DebugMesh;
 
         // ICallsignNodeOccupant
         virtual ACallsignNode* GetCurrentNode_Implementation() const override;
