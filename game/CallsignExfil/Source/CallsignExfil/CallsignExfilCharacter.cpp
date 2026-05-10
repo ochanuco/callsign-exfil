@@ -175,6 +175,14 @@ void ACallsignExfilCharacter::MoveToNode_Implementation(ACallsignNode* TargetNod
 
 void ACallsignExfilCharacter::BeginTurn_Implementation()
 {
+	// Auto-skip dead pawn's turn: the auto-advance timer in GameMode would
+	// stall on IsTurnFinished otherwise (and the player would see misleading
+	// "your turn" messaging while hidden).
+	if (HealthComp && HealthComp->bIsDead)
+	{
+		bTurnFinished = true;
+		return;
+	}
 	// Player turns are driven by the PlayerController; no work here in Phase 1.
 	bTurnFinished = false;
 }

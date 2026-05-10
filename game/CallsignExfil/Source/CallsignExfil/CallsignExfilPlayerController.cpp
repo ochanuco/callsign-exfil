@@ -20,6 +20,7 @@
 #include "Inventory/CallsignInventoryComponent.h"
 #include "Node/CallsignNode.h"
 #include "Node/CallsignNodeOccupant.h"
+#include "Pawns/CallsignHealthComponent.h"
 #include "Pawns/CallsignTargeting.h"
 #include "Turn/CallsignTurnParticipant.h"
 #include "Turn/CallsignTurnSystem.h"
@@ -564,6 +565,17 @@ bool ACallsignExfilPlayerController::TryRequestSupport(ECallsignSupportType Type
 	if (!World)
 	{
 		return false;
+	}
+	if (APawn* MyPawn = GetPawn())
+	{
+		if (UCallsignHealthComponent* HC = MyPawn->FindComponentByClass<UCallsignHealthComponent>())
+		{
+			if (HC->bIsDead)
+			{
+				UE_LOG(LogTemp, Display, TEXT("[PC|Support] reject: pawn is dead"));
+				return false;
+			}
+		}
 	}
 	if (!IsMyTurn())
 	{
