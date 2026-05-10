@@ -9,6 +9,7 @@
 
 class UInputMappingContext;
 class UUserWidget;
+class UCallsignWeaponDefinition;
 
 /**
  *  Controller-side mode that mirrors ECallsignCameraMode but is owned by the
@@ -73,6 +74,10 @@ protected:
 	/** Currently active controller mode. */
 	UPROPERTY(BlueprintReadOnly, Category = "Callsign|Input")
 	ECallsignControllerMode CurrentMode = ECallsignControllerMode::Idle;
+
+	/** Default weapon used by this PC when issuing shoot actions in Phase 1. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Callsign|Weapon")
+	TObjectPtr<UCallsignWeaponDefinition> DefaultWeapon;
 
 	/** Gameplay initialization */
 	virtual void BeginPlay() override;
