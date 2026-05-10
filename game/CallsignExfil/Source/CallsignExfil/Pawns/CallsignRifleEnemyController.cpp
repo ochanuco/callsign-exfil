@@ -19,19 +19,13 @@
 void ACallsignRifleEnemyController::OnPossess(APawn* InPawn)
 {
         Super::OnPossess(InPawn);
-
-        if (!InPawn)
-        {
-                return;
-        }
-
-        if (UWorld* World = GetWorld())
-        {
-                if (UCallsignTurnSystem* TurnSystem = World->GetSubsystem<UCallsignTurnSystem>())
-                {
-                        TurnSystem->RegisterParticipant(InPawn);
-                }
-        }
+        // Issue #53: do NOT register here. ACallsignExfilGameMode::BeginPlay
+        // is the single source of truth for turn-participant registration so
+        // the player can be added at index 0 before any auto-possessed enemy.
+        // OnPossess fires during SpawnPhase1Demo's enemy spawn and would
+        // otherwise beat the GameMode loop, putting the enemy first in the
+        // turn queue and starting the round on an enemy attack right after
+        // PIE launch.
 }
 
 void ACallsignRifleEnemyController::BeginTurn_Implementation()
