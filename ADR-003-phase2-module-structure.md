@@ -60,7 +60,11 @@ Phase 1 の `UCallsignWeaponDefinition` (Damage / Range / bRequiresLineOfSight) 
 - `DurabilityMax` (int32) — 最大耐久
 - `DurabilityCostPerAction` (int32) — 1射撃行動あたりの耐久減少量。**注: §8 参照 — Phase 2 では発砲弾数 (`ShotsPerAction`) ではなく射撃行動単位で減少させる。3点バースト AR でも 1 行動 = 1 回の減少**
 - `bIsRescue` (bool) — 救済ハンドガン特例。true なら耐久減少なし・弾薬プール非参照
+- `bHasInfiniteDurability` (bool) — true なら耐久演算自体をスキップ
+- `bHasInfiniteMagazine` (bool) — true なら `Reload()` が no-op、マガジン消費の演算もスキップ
 - `WeaponSlot` (`ECallsignWeaponSlot`) — 装備スロット
+
+`bHasInfiniteDurability` / `bHasInfiniteMagazine` は §9 の救済ハンドガン特例で必須に使う。算術オーバーフロー回避のため数値ではなくフラグで「無限」を表現する方針を採用している (詳細は §9 参照)。
 
 #### 3.2 新規 USTRUCT / enum
 
@@ -87,7 +91,7 @@ UE プレフィックス規約 (Phase 1 ADR-002 §6 と同一) に従う。Phase
 #### 4.2 Weapon
 
 > `UCallsignWeaponInstanceObject : UObject`: 武器インスタンスの実体。`FCallsignWeaponInstance` を内部状態として保持し、振る舞いをメソッドとして公開する。`UObject` ベースを採用する理由は、(a) BlueprintCallable で `GetMagazineCurrent` / `GetDurabilityCurrent` / `IsBroken` を露出しやすい、(b) Phase 3 のニコイチで状態遷移が複雑化したときに `UPROPERTY` 拡張が容易、(c) UI 連携が `TObjectPtr` で扱える。GC コストは Pawn ごとに数個のため許容する。
-> 公開 API (BlueprintCallable): `GetMagazineCurrent() const` / `GetDurabilityCurrent() const` / `IsBroken() const` / `ApplyDurabilityCost()` / `ConsumeMagazineRound(int32 Count)` / `ReloadFromPool(int32 Available, FCallsignReloadResult& OutResult)`
+> 公開 API (BlueprintCallable): `GetMagazineCurrent() const` / `GetDurabilityCurrent() const` / `IsBroken() const` / `ApplyDurabilityCost()` / `ConsumeShot()` (1射撃行動 = `ShotsPerAction` 発のマガジン消費 + 耐久消費を内部で行う) / `ReloadFromPool(int32 Available, FCallsignReloadResult& OutResult)`
 
 POD `FCallsignWeaponInstance` をそのまま公開する案も検討したが、Phase 3 のニコイチで耐久回復・最大耐久低下・特性継承を扱う際に状態機械化が必要となるため、Phase 2 段階で UObject 化する判断を確定させる。
 
@@ -127,7 +131,7 @@ Phase 1 の DAG (ADR-002 §5) を維持しつつ、`Inventory` / `Weapon` を追
         +----------------+----------------+
         v                v                v
    +---------+      +--------+       +-------+
-   |  Turn   |      | Pawns  |<----->| Camera|
+   |  Turn   |      | Pawns  |------>| Camera|
    +----+----+      +---+----+       +-------+
         |               |
         |               v
@@ -157,6 +161,7 @@ Phase 1 の DAG (ADR-002 §5) を維持しつつ、`Inventory` / `Weapon` を追
 - `Weapon` は `Data` のみ参照する。
 - `Inventory` は `Weapon` と `Data` を参照する。Pawn 具象型は知らない。
 - `Combat` は `Inventory` / `Weapon` / `Data` / `LineOfSight` を参照する (Phase 1 から `Inventory` / `Weapon` 依存を追加)。
+- `Pawns → Camera` は片方向のみ (Camera は Pawn にアタッチされる `USceneComponent` 派生のため、Pawn が Camera を所有する向きで参照する。Camera 側から Pawn の具象型は参照しない。ADR-002 §5 と整合)。
 - `Pawns` は `Inventory` をコンポーネントとして所有する (`UActorComponent` 経由のため `Pawns → Inventory` の依存は許容)。
 - `Turn` は引き続き `ICallsignTurnParticipant` 越しにのみ参加者を知る。リロードもターン消費アクションのため Turn は Inventory を直接知らず、`PlayerController` 経由でターンを終端する。
 - `ACallsignExfilPlayerController` は `Core` 層 (`Core/` サブディレクトリ) に属する。図上では `Core` ノードに含まれ、`PlayerController` から `Inventory` (`Reload` 入口) と `Turn` (`EndTurn`) への依存が走る。Pawns 層の Pawn が Inventory コンポーネントを持つこととは別経路であり、PC は Pawn の `FindComponentByClass<UCallsignInventoryComponent>` で取り出すか、可能なら Pawn の取得 API を経由する。
