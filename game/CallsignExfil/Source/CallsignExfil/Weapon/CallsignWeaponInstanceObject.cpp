@@ -86,35 +86,37 @@ bool UCallsignWeaponInstanceObject::ConsumeShot()
                         OnWeaponBroken.Broadcast(this);
 
                         // Player-facing broken notification. Walk Outer -> InventoryComponent
-                        // -> Pawn to discriminate "あなたの銃" vs "敵の銃". UObject-derived
-                        // weapons cannot rely on a direct GetWorld(), so resolve the world
-                        // via the owning pawn (registered with the world) when possible.
-                        bool bBelongsToPlayer = false;
-                        bool bOwnerKnown = false;
-                        UWorld* World = nullptr;
-                        if (UCallsignInventoryComponent* OwningInv = GetTypedOuter<UCallsignInventoryComponent>())
-                        {
-                                if (APawn* OwningPawn = Cast<APawn>(OwningInv->GetOwner()))
-                                {
-                                        bOwnerKnown = true;
-                                        World = OwningPawn->GetWorld();
-                                        bBelongsToPlayer = (OwningPawn == UGameplayStatics::GetPlayerPawn(OwningPawn, 0));
-                                }
-                        }
-
+                        // -> Pawn to discriminate "あなたの銃" vs "敵の銃".
+                        //
+                        // Resolve World first via UObject::GetWorld() (uses the outer chain)
+                        // so the generic fallback message stays reachable even when the
+                        // owning-pawn lookup fails. Without this, an outer chain that misses
+                        // an InventoryComponent would silently drop the broadcast.
+                        UWorld* World = GetWorld();
                         if (World)
                         {
-                                if (!bOwnerKnown)
+                                if (UCallsignInventoryComponent* OwningInv = GetTypedOuter<UCallsignInventoryComponent>())
                                 {
-                                        CallsignMsg::PushSystem(World, TEXT("武器が破損した!"));
-                                }
-                                else if (bBelongsToPlayer)
-                                {
-                                        CallsignMsg::PushSystem(World, TEXT("あなたの銃が壊れた!"));
+                                        APawn* OwningPawn = Cast<APawn>(OwningInv->GetOwner());
+                                        APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(this, 0);
+                                        if (OwningPawn && OwningPawn == PlayerPawn)
+                                        {
+                                                CallsignMsg::PushSystem(World, TEXT("あなたの銃が壊れた!"));
+                                        }
+                                        else if (OwningPawn)
+                                        {
+                                                CallsignMsg::PushSystem(World, TEXT("敵の銃が壊れた!"));
+                                        }
+                                        else
+                                        {
+                                                // Outer chain reached an Inventory but no Pawn owner.
+                                                CallsignMsg::PushSystem(World, TEXT("武器が破損した!"));
+                                        }
                                 }
                                 else
                                 {
-                                        CallsignMsg::PushSystem(World, TEXT("敵の銃が壊れた!"));
+                                        // Outer chain doesn't reach an InventoryComponent.
+                                        CallsignMsg::PushSystem(World, TEXT("武器が破損した!"));
                                 }
                         }
                 }
