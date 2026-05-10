@@ -57,6 +57,13 @@ private:
 	/** Spawns a 3x3 grid of nodes around the player + one enemy at the corner. */
 	void SpawnPhase1Demo();
 
+	/**
+	 *  Phase 2 demo helper: builds a transient UCallsignWeaponDefinition + WeaponInstanceObject
+	 *  in code (no Editor Data Asset required), equips it into the pawn's inventory, and seeds
+	 *  Light ammo for the player. ADR-003 §3.1 / §4.1 / §4.2.
+	 */
+	void EquipPhase2DemoLoadout(APawn* Pawn, bool bIsEnemy);
+
 	/** Handle for the auto-advance timer. */
 	FTimerHandle AutoAdvanceTimerHandle;
 };

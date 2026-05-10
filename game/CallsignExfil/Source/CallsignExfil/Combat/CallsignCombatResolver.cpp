@@ -94,5 +94,13 @@ FCallsignShotResult UCallsignCombatResolver::ResolveShot(const FCallsignShotRequ
                 Result.DamageApplied = 0.f;
         }
 
+        // Phase 2 demo: lightweight hit/damage trace so the auto-demo can be observed in
+        // the Output Log when the request was routed via Inventory (ADR-003 §4.3 Phase 2 path).
+        if (Phase2WeaponDef)
+        {
+                UE_LOG(LogTemp, Display, TEXT("[Combat] ResolveShot Phase2 hit=%d damage=%.2f"),
+                        Result.bHit ? 1 : 0, Result.DamageApplied);
+        }
+
         return Result;
 }
