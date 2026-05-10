@@ -9,6 +9,8 @@
 
 class UInputMappingContext;
 class UUserWidget;
+class UCallsignWeaponDefinition;
+class ACallsignNode;
 
 /**
  *  Controller-side mode that mirrors ECallsignCameraMode but is owned by the
@@ -74,14 +76,29 @@ protected:
 	UPROPERTY(BlueprintReadOnly, Category = "Callsign|Input")
 	ECallsignControllerMode CurrentMode = ECallsignControllerMode::Idle;
 
+	/** Default weapon used by this PC when issuing shoot actions in Phase 1. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Callsign|Weapon")
+	TObjectPtr<UCallsignWeaponDefinition> DefaultWeapon;
+
 	/** Gameplay initialization */
 	virtual void BeginPlay() override;
+
+	/** Gameplay teardown; unbinds turn-system delegates. */
+	virtual void EndPlay(const EEndPlayReason::Type Reason) override;
 
 	/** Input mapping context setup */
 	virtual void SetupInputComponent() override;
 
 	/** Returns true if the player should use UMG touch controls */
 	bool ShouldUseTouchControls() const;
+
+	/** Bound to UCallsignTurnSystem::OnTurnBegin; swaps to NodeSelect when our turn begins. */
+	UFUNCTION()
+	void HandleTurnBegin(AActor* Who);
+
+	/** Bound to UCallsignTurnSystem::OnTurnEnd; swaps to Idle when our turn ends. */
+	UFUNCTION()
+	void HandleTurnEnd(AActor* Who);
 
 public:
 
@@ -92,4 +109,24 @@ public:
 	/** Broadcast when the controller mode changes. */
 	UPROPERTY(BlueprintAssignable, Category = "Callsign|Input")
 	FCallsignOnControllerModeChanged OnControllerModeChanged;
+
+	/** Returns true if it is currently this PC's possessed pawn's turn. */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Callsign|Turn")
+	bool IsMyTurn() const;
+
+	/** Returns true if the possessed pawn can move to the given node this turn. */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Callsign|Move")
+	bool CanMoveToNode(const ACallsignNode* Target) const;
+
+	/** Attempts to move the possessed pawn to Target. Ends the turn on success. */
+	UFUNCTION(BlueprintCallable, Category = "Callsign|Move")
+	bool TryMoveToNode(ACallsignNode* Target);
+
+	/** Attempts to shoot Target with the default weapon. Ends the turn whether hit or miss. */
+	UFUNCTION(BlueprintCallable, Category = "Callsign|Combat")
+	bool TryShootAtActor(AActor* Target);
+
+	/** Ends the player's current turn via the world TurnSystem. */
+	UFUNCTION(BlueprintCallable, Category = "Callsign|Turn")
+	void EndTurn();
 };
