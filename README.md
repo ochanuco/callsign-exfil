@@ -10,7 +10,7 @@
 
 ## 構成
 
-```
+```text
 callsign-exfil/
 ├── PLAN.md / ADR.md / SETUP.md   # ドキュメント
 ├── .gitignore / .gitattributes   # UE5 + Git LFS 設定
