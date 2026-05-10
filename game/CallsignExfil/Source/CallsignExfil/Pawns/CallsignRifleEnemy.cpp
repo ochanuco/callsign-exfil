@@ -2,6 +2,7 @@
 
 #include "CallsignRifleEnemy.h"
 #include "CallsignRifleEnemyController.h"
+#include "Inventory/CallsignInventoryComponent.h"
 #include "Node/CallsignNode.h"
 #include "Node/CallsignNodeMovement.h"
 #include "Components/CapsuleComponent.h"
@@ -27,6 +28,11 @@ ACallsignRifleEnemy::ACallsignRifleEnemy()
         DebugMesh->SetRelativeScale3D(FVector(0.5f, 0.5f, 1.5f));
         DebugMesh->SetRelativeLocation(FVector(0.f, 0.f, -45.f));
         DebugMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+        // Phase 2 (ADR-003 §4.1): every pawn owns an inventory component.
+        // Phase 2 enemies use bUsesAmmoPool=false data so combat does not draw from a pool;
+        // the slot still holds a weapon definition for damage/range purposes (ADR-003 §13).
+        Inventory = CreateDefaultSubobject<UCallsignInventoryComponent>(TEXT("Inventory"));
 }
 
 ACallsignNode* ACallsignRifleEnemy::GetCurrentNode_Implementation() const

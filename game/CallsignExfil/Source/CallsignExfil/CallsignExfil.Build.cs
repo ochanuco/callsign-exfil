@@ -32,7 +32,9 @@ public class CallsignExfil : ModuleRules
 			"CallsignExfil/LineOfSight",
 			"CallsignExfil/Combat",
 			"CallsignExfil/Pawns",
-			"CallsignExfil/HUD"
+			"CallsignExfil/HUD",
+			"CallsignExfil/Inventory",
+			"CallsignExfil/Weapon"
 		});
 
 		// Uncomment if you are using Slate UI

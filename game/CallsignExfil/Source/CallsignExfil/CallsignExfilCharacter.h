@@ -14,6 +14,7 @@ class USpringArmComponent;
 class UCameraComponent;
 class UInputAction;
 class ACallsignNode;
+class UCallsignInventoryComponent;
 struct FInputActionValue;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
@@ -98,6 +99,10 @@ public:
 	FORCEINLINE class UCameraComponent* GetFollowCamera() const { return FollowCamera; }
 
 public:
+
+	/** Phase 2: per-pawn inventory (weapon slots + ammo pool). ADR-003 §4.1. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Callsign|Inventory")
+	TObjectPtr<UCallsignInventoryComponent> Inventory;
 
 	/** Node currently occupied by the player. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Callsign|Node")
