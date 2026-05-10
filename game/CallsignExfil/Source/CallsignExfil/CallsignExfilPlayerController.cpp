@@ -41,6 +41,14 @@ void ACallsignExfilPlayerController::BeginPlay()
 	bEnableClickEvents = true;
 	bEnableMouseOverEvents = true;
 
+	// Mac trackpad / Windows mouse: GameAndUI input mode lets viewport click
+	// events flow into our BindKey handler. Without this, the default game-only
+	// input mode can silently drop clicks on macOS depending on capture state.
+	FInputModeGameAndUI Mode;
+	Mode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+	Mode.SetHideCursorDuringCapture(false);
+	SetInputMode(Mode);
+
 	// only spawn touch controls on local player controllers
 	if (ShouldUseTouchControls() && IsLocalPlayerController())
 	{
@@ -571,10 +579,15 @@ ACallsignNode* ACallsignExfilPlayerController::GetNodeUnderCursor() const
 
 void ACallsignExfilPlayerController::HandleLeftClickToMoveNode()
 {
+	// Diagnostic log: confirms the LMB binding fired regardless of trace result.
+	// Useful for verifying Mac trackpad clicks reach the controller.
+	UE_LOG(LogTemp, Display, TEXT("[PC] LMB pressed"));
+
 	ACallsignNode* Hovered = GetNodeUnderCursor();
 	if (!Hovered)
 	{
-		// No node under cursor; ignore (clicks on empty world or non-node actors).
+		UE_LOG(LogTemp, Display, TEXT("[PC] click: no node under cursor"));
+		// Clicks on empty world or non-node actors are ignored (no-op).
 		return;
 	}
 	if (!CanMoveToNode(Hovered))
