@@ -76,10 +76,6 @@ protected:
 	UPROPERTY(BlueprintReadOnly, Category = "Callsign|Input")
 	ECallsignControllerMode CurrentMode = ECallsignControllerMode::Idle;
 
-	/** Default weapon used by this PC when issuing shoot actions in Phase 1. */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Callsign|Weapon")
-	TObjectPtr<UCallsignWeaponDefinition> DefaultWeapon;
-
 	/** Gameplay initialization */
 	virtual void BeginPlay() override;
 
@@ -101,6 +97,14 @@ protected:
 	void HandleTurnEnd(AActor* Who);
 
 public:
+
+	/**
+	 *  Default weapon used by this PC when issuing shoot actions in Phase 1.
+	 *  Phase 2 (ADR-003 §3.1): GameMode auto-demo writes this directly when
+	 *  equipping a transient weapon definition at spawn, so the field is public.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Callsign|Weapon")
+	TObjectPtr<UCallsignWeaponDefinition> DefaultWeapon;
 
 	/** Switches the controller mode and notifies camera/IMC subsystems. */
 	UFUNCTION(BlueprintCallable, Category = "Callsign|Input")
