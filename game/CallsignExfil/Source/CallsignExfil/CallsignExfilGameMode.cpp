@@ -247,25 +247,25 @@ void ACallsignExfilGameMode::SpawnEnvironmentDressing(const FVector& Origin)
 	FActorSpawnParameters Params;
 	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
-	auto SpawnBlock = [&](const FVector& Loc, const FVector& Scale, UMaterialInterface* Mat,
+	// Spawn a single 1m^3 voxel cube at the given world-space center. Floor
+	// voxels pass NoCollision so ECC_Visibility traces (cursor pick / LoS)
+	// pass through; cover voxels keep QueryAndPhysics so the CombatResolver
+	// line trace treats them as natural blockers.
+	auto SpawnVoxel = [&](const FVector& CenterLoc, UMaterialInterface* Mat,
 		bool bEnableCollision) -> AStaticMeshActor*
 	{
-		AStaticMeshActor* A = World->SpawnActor<AStaticMeshActor>(AStaticMeshActor::StaticClass(),
-			Loc, FRotator::ZeroRotator, Params);
+		AStaticMeshActor* A = World->SpawnActor<AStaticMeshActor>(
+			AStaticMeshActor::StaticClass(), CenterLoc, FRotator::ZeroRotator, Params);
 		if (!A)
 		{
 			return nullptr;
 		}
-		// Mobility must be Movable before SetActorScale3D / SetStaticMesh on a
-		// runtime-spawned StaticMeshActor (default is Static).
+		// Mobility must be Movable before SetStaticMesh on a runtime-spawned
+		// StaticMeshActor (default mobility is Static).
 		A->SetMobility(EComponentMobility::Movable);
 		if (UStaticMeshComponent* Comp = A->GetStaticMeshComponent())
 		{
 			Comp->SetStaticMesh(CubeMesh);
-			// Floor disables collision so click-to-move (ECC_Visibility line
-			// trace from cursor) and LoS traces don't bite on the slab; cover
-			// blocks keep collision so the existing CombatResolver trace
-			// treats them as natural blockers.
 			Comp->SetCollisionEnabled(bEnableCollision
 				? ECollisionEnabled::QueryAndPhysics
 				: ECollisionEnabled::NoCollision);
@@ -274,49 +274,75 @@ void ACallsignExfilGameMode::SpawnEnvironmentDressing(const FVector& Origin)
 				Comp->SetMaterial(0, Mat);
 			}
 		}
-		A->SetActorScale3D(Scale);
 		return A;
 	};
 
-	// Engine cube is 100x100x100. Floor slab: 40m x 40m, 10 cm thick. Place it
-	// just below the node visuals (nodes sit at Origin.Z - 90).
-	const float FloorThicknessZ = 0.1f;
-	const FVector FloorCenter(Origin.X, Origin.Y, Origin.Z - 100.f);
-	SpawnBlock(FloorCenter, FVector(40.f, 40.f, FloorThicknessZ), GridMat, /*bEnableCollision=*/false);
+	// Voxel grid: 100 cm cubes (Engine BasicShapes/Cube is 100^3). Aligning
+	// to 100 cm gives "3 voxels = 1 tile move" (node spacing is 300 cm), so
+	// players can read distances directly off the grid. Floor top sits at
+	// Origin.Z - 90 to match the existing Node Z, so tiles look seated on
+	// the ground; cube centers are therefore one half-voxel below that.
+	constexpr float VoxelSize = 100.f;
+	constexpr float HalfVoxel = 50.f;
+	const float FloorTopZ = Origin.Z - 90.f;
+	const float FloorVoxelCenterZ = FloorTopZ - HalfVoxel;
 
-	// Top of floor in world space, used to seat cover blocks on the ground.
-	const float FloorTopZ = FloorCenter.Z + 50.f * FloorThicknessZ;
-
-	// Cover blocks scattered between/around the 3x3 grid. Offsets are in cm
-	// relative to Origin (grid center). Each entry: (X,Y,Scale). Picked by
-	// hand so a few blocks sit between adjacent tiles for the LoS pre-check
-	// to have something to bite on.
-	struct FCoverDef { FVector OffsetXY; FVector Scale; };
-	const FCoverDef Covers[] = {
-		// Mid-edge crates between tiles in the inner ring.
-		{ FVector(-150.f, -300.f, 0.f), FVector(0.6f, 0.6f, 1.4f) },
-		{ FVector( 300.f, -150.f, 0.f), FVector(0.5f, 0.5f, 1.5f) },
-		{ FVector( 150.f,  300.f, 0.f), FVector(0.6f, 0.6f, 1.4f) },
-		{ FVector(-300.f,  150.f, 0.f), FVector(0.5f, 0.5f, 1.5f) },
-		// Long low sandbag-like wall on one flank.
-		{ FVector(-450.f,    0.f, 0.f), FVector(0.5f, 2.0f, 0.7f) },
-		// Two outer pillars to give the skybox something to frame against.
-		{ FVector(-650.f, -650.f, 0.f), FVector(0.3f, 0.3f, 3.5f) },
-		{ FVector( 650.f,  650.f, 0.f), FVector(0.3f, 0.3f, 3.5f) },
-	};
-
-	int32 BlockCount = 0;
-	for (const FCoverDef& C : Covers)
+	// Floor: 13x13 voxels (~13 m square) centered on the origin. Generous
+	// margin around the 3x3 (±300 cm) playable grid so the world doesn't
+	// end abruptly at the outer node ring.
+	constexpr int32 FloorRadius = 6;
+	int32 FloorCount = 0;
+	for (int32 i = -FloorRadius; i <= FloorRadius; ++i)
 	{
-		const float HalfHeight = 50.f * C.Scale.Z;
-		const FVector Loc(Origin.X + C.OffsetXY.X, Origin.Y + C.OffsetXY.Y, FloorTopZ + HalfHeight);
-		if (SpawnBlock(Loc, C.Scale, /*Mat*/ nullptr, /*bEnableCollision=*/true))
+		for (int32 j = -FloorRadius; j <= FloorRadius; ++j)
 		{
-			++BlockCount;
+			const FVector Loc(
+				Origin.X + i * VoxelSize,
+				Origin.Y + j * VoxelSize,
+				FloorVoxelCenterZ);
+			if (SpawnVoxel(Loc, GridMat, /*bEnableCollision=*/false))
+			{
+				++FloorCount;
+			}
 		}
 	}
 
-	UE_LOG(LogTemp, Display, TEXT("[GameMode] EnvironmentDressing: floor + %d cover blocks"), BlockCount);
+	// Cover stacks. Each entry is a (GX,GY) voxel-grid coord (units of
+	// VoxelSize from origin) and a Height in voxels. Crate XY positions are
+	// kept off the cardinal corridors at GX/GY in {-3, 0, 3} so the player
+	// can still walk between any two adjacent nodes without colliding.
+	struct FCoverStack { int32 GX; int32 GY; int32 Height; };
+	const FCoverStack Stacks[] = {
+		// Mid-tile crates: tucked into the diagonal gaps between nodes.
+		{ -1, -2, 1 },
+		{  2, -1, 1 },
+		{  1,  2, 1 },
+		{ -2,  1, 1 },
+		// Sandbag-shaped low wall on the west flank, 3 voxels long.
+		{ -5, -1, 1 }, { -5, 0, 1 }, { -5, 1, 1 },
+		// Two outer pillars (4 voxels tall) to frame the playable area.
+		{ -7, -7, 4 },
+		{  7,  7, 4 },
+	};
+
+	int32 CoverCount = 0;
+	for (const FCoverStack& S : Stacks)
+	{
+		for (int32 z = 0; z < S.Height; ++z)
+		{
+			const FVector Loc(
+				Origin.X + S.GX * VoxelSize,
+				Origin.Y + S.GY * VoxelSize,
+				FloorTopZ + HalfVoxel + z * VoxelSize);
+			if (SpawnVoxel(Loc, /*Mat*/ nullptr, /*bEnableCollision=*/true))
+			{
+				++CoverCount;
+			}
+		}
+	}
+
+	UE_LOG(LogTemp, Display, TEXT("[GameMode] EnvironmentDressing: %d floor voxels + %d cover voxels"),
+		FloorCount, CoverCount);
 }
 
 void ACallsignExfilGameMode::EquipPhase2DemoLoadout(APawn* Pawn, bool bIsEnemy)
