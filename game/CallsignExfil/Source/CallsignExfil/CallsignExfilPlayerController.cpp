@@ -13,6 +13,7 @@
 #include "Combat/CallsignCombatResolver.h"
 #include "Data/CallsignTypes.h"
 #include "Data/CallsignWeaponDefinition.h"
+#include "Inventory/CallsignInventoryComponent.h"
 #include "Node/CallsignNode.h"
 #include "Node/CallsignNodeOccupant.h"
 #include "Turn/CallsignTurnParticipant.h"
@@ -309,6 +310,43 @@ bool ACallsignExfilPlayerController::TryShootAtActor(AActor* Target)
 	// Action consumed: end the turn whether hit or miss.
 	EndTurn();
 
+	return true;
+}
+
+bool ACallsignExfilPlayerController::TryReload()
+{
+	if (!IsMyTurn())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[PC] TryReload rejected (not my turn)"));
+		return false;
+	}
+
+	APawn* P = GetPawn();
+	if (!P)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[PC] TryReload: no possessed pawn"));
+		return false;
+	}
+
+	UCallsignInventoryComponent* Inv = P->FindComponentByClass<UCallsignInventoryComponent>();
+	if (!Inv)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[PC] TryReload: no Inventory on pawn"));
+		return false;
+	}
+
+	const FCallsignReloadResult R = Inv->Reload();
+	if (!R.bReloaded)
+	{
+		// ADR-003 §7: rescue / empty pool / full magazine -> no-op, no turn cost.
+		UE_LOG(LogTemp, Display, TEXT("[PC] TryReload: no-op (rescue/empty pool/full mag)"));
+		return false;
+	}
+
+	UE_LOG(LogTemp, Display, TEXT("[PC] TryReload: tactical=%d discarded=%d loaded=%d"),
+		R.bWasTactical ? 1 : 0, R.DiscardedRounds, R.LoadedRounds);
+
+	EndTurn();
 	return true;
 }
 

@@ -11,6 +11,7 @@
 
 class ACallsignNode;
 class UStaticMeshComponent;
+class UCallsignInventoryComponent;
 
 /**
  *  Phase 1 sole enemy archetype. Implements both NodeOccupant and TurnParticipant
@@ -37,6 +38,10 @@ public:
         /** Phase 1 debug visual: cube child mesh so the enemy is visible without an SK mesh. */
         UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Callsign|Visual")
         TObjectPtr<UStaticMeshComponent> DebugMesh;
+
+        /** Phase 2: per-pawn inventory. Phase 2 enemy AI does not reload (ADR-003 §13). */
+        UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Callsign|Inventory")
+        TObjectPtr<UCallsignInventoryComponent> Inventory;
 
         // ICallsignNodeOccupant
         virtual ACallsignNode* GetCurrentNode_Implementation() const override;

@@ -126,6 +126,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Callsign|Combat")
 	bool TryShootAtActor(AActor* Target);
 
+	/**
+	 *  Phase 2 (ADR-003 §7): routes a reload request through the possessed pawn's inventory.
+	 *  Ends the turn only when the reload actually loaded rounds; rescue / empty-pool / full-mag
+	 *  no-ops do not consume the turn. Returns true when rounds were loaded.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Callsign|Reload")
+	bool TryReload();
+
 	/** Ends the player's current turn via the world TurnSystem. */
 	UFUNCTION(BlueprintCallable, Category = "Callsign|Turn")
 	void EndTurn();
