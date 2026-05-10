@@ -45,19 +45,19 @@ public:
         bool bUsesAmmoPool = true;
 
         /** Magazine capacity. Generic safe default; per-weapon Data Assets override. */
-        UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Callsign|Weapon|Ammo")
+        UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Callsign|Weapon|Ammo", meta = (ClampMin = "1", UIMin = "1"))
         int32 MagazineSize = 10;
 
         /** Rounds consumed from the magazine per shoot action (e.g. 3 for a 3-round burst AR). */
-        UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Callsign|Weapon|Ammo")
+        UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Callsign|Weapon|Ammo", meta = (ClampMin = "1", UIMin = "1"))
         int32 ShotsPerAction = 1;
 
         /** Maximum durability. ADR-003 §8 / PLAN.md durability MVP. */
-        UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Callsign|Weapon|Durability")
+        UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Callsign|Weapon|Durability", meta = (ClampMin = "1", UIMin = "1"))
         int32 DurabilityMax = 20;
 
         /** Durability consumed per shoot action (per-action, not per-bullet — ADR-003 §8). */
-        UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Callsign|Weapon|Durability")
+        UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Callsign|Weapon|Durability", meta = (ClampMin = "0", UIMin = "0"))
         int32 DurabilityCostPerAction = 1;
 
         /** When true, this weapon is the rescue handgun (no durability cost, no pool draw). */
