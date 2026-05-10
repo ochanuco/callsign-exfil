@@ -580,13 +580,15 @@ ACallsignNode* ACallsignExfilPlayerController::GetNodeUnderCursor() const
 void ACallsignExfilPlayerController::HandleLeftClickToMoveNode()
 {
 	// Diagnostic log: confirms the LMB binding fired regardless of trace result.
-	// Useful for verifying Mac trackpad clicks reach the controller.
-	UE_LOG(LogTemp, Display, TEXT("[PC] LMB pressed"));
+	// Useful for verifying Mac trackpad clicks reach the controller. Kept at
+	// Verbose so shipping / long-session sessions don't get spammed; the
+	// rejection / accepted-decision logs below stay at Display.
+	UE_LOG(LogTemp, Verbose, TEXT("[PC] LMB pressed"));
 
 	ACallsignNode* Hovered = GetNodeUnderCursor();
 	if (!Hovered)
 	{
-		UE_LOG(LogTemp, Display, TEXT("[PC] click: no node under cursor"));
+		UE_LOG(LogTemp, Verbose, TEXT("[PC] click: no node under cursor"));
 		// Clicks on empty world or non-node actors are ignored (no-op).
 		return;
 	}
