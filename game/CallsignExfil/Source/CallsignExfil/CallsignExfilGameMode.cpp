@@ -7,6 +7,7 @@
 #include "Node/CallsignNode.h"
 #include "Node/CallsignNodeOccupant.h"
 #include "Pawns/CallsignRifleEnemy.h"
+#include "HUD/CallsignDebugHUD.h"
 #include "HUD/CallsignMessageBus.h"
 #include "Inventory/CallsignInventoryComponent.h"
 #include "Weapon/CallsignWeaponInstanceObject.h"
@@ -22,6 +23,10 @@ ACallsignExfilGameMode::ACallsignExfilGameMode()
 	// Phase 1 demo defaults: spawn classes resolved from C++.
 	Phase1EnemyClass = ACallsignRifleEnemy::StaticClass();
 	Phase1NodeClass = ACallsignNode::StaticClass();
+
+	// Use the Phase 1 debug HUD (turn info / LoS preview / message log).
+	// BP subclasses can still override this in the Editor if needed.
+	HUDClass = ACallsignDebugHUD::StaticClass();
 }
 
 void ACallsignExfilGameMode::BeginPlay()
