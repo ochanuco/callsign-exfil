@@ -185,6 +185,7 @@ void ACallsignDebugHUD::DrawHUD()
                                 const float FadeWindow = 1.5f;
                                 const float PanelPadding = 12.f;
                                 const float TextLeftInset = 16.f;
+                                const float SlideDuration = 0.25f;       // scroll-in animation length
                                 const FLinearColor PanelBgColor(0.f, 0.f, 0.f, 0.65f);    // semi-transparent black
                                 const FLinearColor PanelBorderColor(0.4f, 0.4f, 0.4f, 0.8f); // subtle gray frame
 
@@ -195,8 +196,21 @@ void ACallsignDebugHUD::DrawHUD()
                                 const float X = ClipX - PanelWidth;
                                 const int32 Count = Active.Num();
 
-                                // Background panel: sized to the message stack so it grows/shrinks
-                                // as messages come and go. Drawn first so the text renders on top.
+                                // Slide-in animation: when a new message was just pushed, all
+                                // visible messages start one slot lower (Y + LineStep) and ease
+                                // up to their settled positions over SlideDuration. The newest
+                                // message also fades in. Combined effect: scrollbar-like "にゅっと
+                                // 入る" feel without per-message animation state.
+                                const float LastPushAt = Bus->GetLastPushAt();
+                                const float TimeSincePush = (LastPushAt < 0.f) ? SlideDuration : (Now - LastPushAt);
+                                const float SlideProgress = FMath::Clamp(TimeSincePush / SlideDuration, 0.f, 1.f);
+                                // SmoothStep ease so the scroll feels less mechanical.
+                                const float EasedProgress = FMath::SmoothStep(0.f, 1.f, SlideProgress);
+                                const float SlideYOffset = (1.f - EasedProgress) * LineStep;
+
+                                // Background panel: sized to the settled message stack. During
+                                // animation the new (bottom) message draws below the panel — its
+                                // own fade-in alpha keeps that brief overshoot subtle.
                                 const float PanelHeight = (Count * LineStep) + (2.f * PanelPadding);
                                 const float PanelX = X - TextLeftInset - PanelPadding;
                                 const float PanelY = ClipY - BottomMargin - ((Count - 1) * LineStep) - PanelPadding;
@@ -209,7 +223,8 @@ void ACallsignDebugHUD::DrawHUD()
                                 for (int32 i = 0; i < Count; ++i)
                                 {
                                         const FCallsignMessage& Msg = Active[Count - 1 - i];
-                                        const float Y = ClipY - BottomMargin - (i * LineStep);
+                                        const float SettledY = ClipY - BottomMargin - (i * LineStep);
+                                        const float Y = SettledY + SlideYOffset; // lower during animation
 
                                         // Stop when we've walked off the top of the viewport.
                                         if (Y < 0.f)
@@ -228,6 +243,12 @@ void ACallsignDebugHUD::DrawHUD()
                                                 {
                                                         Alpha = FMath::Clamp(Remaining / FadeWindow, 0.f, 1.f);
                                                 }
+                                        }
+
+                                        // Newest message also fades in over the slide duration.
+                                        if (i == 0 && SlideProgress < 1.f)
+                                        {
+                                                Alpha *= EasedProgress;
                                         }
 
                                         FLinearColor LineColor = Msg.Color;

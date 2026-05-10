@@ -49,11 +49,23 @@ public:
         UPROPERTY(EditDefaultsOnly, Category = "Callsign|Messaging")
         int32 MaxLines = 12;
 
+        /**
+         *  World-time of the most recent Push (or -1 before any push). Read by
+         *  ACallsignDebugHUD to drive the slide-in animation: when the elapsed
+         *  time since the last push is below the HUD's slide duration, the
+         *  message stack is rendered scrolling upward.
+         */
+        UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Callsign|Messaging")
+        float GetLastPushAt() const { return LastPushAt; }
+
 private:
 
         /** Backing store. Newest entry is at the end of the array. */
         UPROPERTY()
         TArray<FCallsignMessage> Messages;
+
+        /** World time of the most recent Push (or -1 before the first push). */
+        float LastPushAt = -1.f;
 };
 
 /**
