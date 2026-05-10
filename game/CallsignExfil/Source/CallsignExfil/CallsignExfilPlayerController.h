@@ -34,7 +34,12 @@ UCLASS(abstract)
 class ACallsignExfilPlayerController : public APlayerController
 {
 	GENERATED_BODY()
-	
+
+public:
+
+	/** Constructor */
+	ACallsignExfilPlayerController();
+
 protected:
 
 	/** Input Mapping Contexts */

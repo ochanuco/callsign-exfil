@@ -4,10 +4,17 @@
 #include "CallsignExfilPlayerController.h"
 #include "EnhancedInputSubsystems.h"
 #include "Engine/LocalPlayer.h"
+#include "GameFramework/Pawn.h"
 #include "InputMappingContext.h"
 #include "Blueprint/UserWidget.h"
 #include "CallsignExfil.h"
+#include "Camera/CallsignShoulderCameraComponent.h"
 #include "Widgets/Input/SVirtualJoystick.h"
+
+ACallsignExfilPlayerController::ACallsignExfilPlayerController()
+{
+	CurrentMode = ECallsignControllerMode::Idle;
+}
 
 void ACallsignExfilPlayerController::BeginPlay()
 {
@@ -73,21 +80,55 @@ void ACallsignExfilPlayerController::SetMode(ECallsignControllerMode NewMode)
 		return;
 	}
 
-	CurrentMode = NewMode;
-
-	// TODO Phase 1 impl: actually swap input mapping contexts. We sketch the
-	// hookup below so the references are not stripped, but the full add/remove
-	// flow lands when input actions per mode are defined.
-	if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(GetLocalPlayer()))
+	// Resolve IMCs for old vs new mode. Idle has no IMC.
+	auto ResolveIMC = [this](ECallsignControllerMode Mode) -> UInputMappingContext*
 	{
-		if (NodeSelectIMC && AimIMC)
+		switch (Mode)
 		{
-			// Placeholder: in Phase 1 follow-up, remove the inactive IMC and add
-			// the active one with a stable priority. Swap depends on which
-			// mappings exist for each mode.
-			(void)Subsystem;
+		case ECallsignControllerMode::NodeSelect: return NodeSelectIMC;
+		case ECallsignControllerMode::Aim:        return AimIMC;
+		case ECallsignControllerMode::Idle:
+		default:                                  return nullptr;
+		}
+	};
+
+	UInputMappingContext* OldIMC = ResolveIMC(CurrentMode);
+	UInputMappingContext* NewIMC = ResolveIMC(NewMode);
+
+	if (ULocalPlayer* LP = GetLocalPlayer())
+	{
+		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = LP->GetSubsystem<UEnhancedInputLocalPlayerSubsystem>())
+		{
+			if (OldIMC)
+			{
+				Subsystem->RemoveMappingContext(OldIMC);
+			}
+			if (NewIMC)
+			{
+				Subsystem->AddMappingContext(NewIMC, /*priority*/ 0);
+			}
 		}
 	}
+
+	CurrentMode = NewMode;
+
+	// Notify the shoulder camera component on the possessed pawn (if any).
+	if (APawn* P = GetPawn())
+	{
+		if (UCallsignShoulderCameraComponent* Cam = P->FindComponentByClass<UCallsignShoulderCameraComponent>())
+		{
+			ECallsignCameraMode CamMode = ECallsignCameraMode::Idle;
+			switch (NewMode)
+			{
+			case ECallsignControllerMode::NodeSelect: CamMode = ECallsignCameraMode::NodeSelect; break;
+			case ECallsignControllerMode::Aim:        CamMode = ECallsignCameraMode::Aim;        break;
+			default:                                  CamMode = ECallsignCameraMode::Idle;       break;
+			}
+			Cam->SetCameraMode(CamMode);
+		}
+	}
+
+	UE_LOG(LogTemp, Display, TEXT("[PC] SetMode -> %d"), (int32)NewMode);
 
 	OnControllerModeChanged.Broadcast(NewMode);
 }
