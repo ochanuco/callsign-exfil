@@ -247,7 +247,8 @@ void ACallsignExfilGameMode::SpawnEnvironmentDressing(const FVector& Origin)
 	FActorSpawnParameters Params;
 	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
-	auto SpawnBlock = [&](const FVector& Loc, const FVector& Scale, UMaterialInterface* Mat) -> AStaticMeshActor*
+	auto SpawnBlock = [&](const FVector& Loc, const FVector& Scale, UMaterialInterface* Mat,
+		bool bEnableCollision) -> AStaticMeshActor*
 	{
 		AStaticMeshActor* A = World->SpawnActor<AStaticMeshActor>(AStaticMeshActor::StaticClass(),
 			Loc, FRotator::ZeroRotator, Params);
@@ -261,6 +262,13 @@ void ACallsignExfilGameMode::SpawnEnvironmentDressing(const FVector& Origin)
 		if (UStaticMeshComponent* Comp = A->GetStaticMeshComponent())
 		{
 			Comp->SetStaticMesh(CubeMesh);
+			// Floor disables collision so click-to-move (ECC_Visibility line
+			// trace from cursor) and LoS traces don't bite on the slab; cover
+			// blocks keep collision so the existing CombatResolver trace
+			// treats them as natural blockers.
+			Comp->SetCollisionEnabled(bEnableCollision
+				? ECollisionEnabled::QueryAndPhysics
+				: ECollisionEnabled::NoCollision);
 			if (Mat)
 			{
 				Comp->SetMaterial(0, Mat);
@@ -274,7 +282,7 @@ void ACallsignExfilGameMode::SpawnEnvironmentDressing(const FVector& Origin)
 	// just below the node visuals (nodes sit at Origin.Z - 90).
 	const float FloorThicknessZ = 0.1f;
 	const FVector FloorCenter(Origin.X, Origin.Y, Origin.Z - 100.f);
-	SpawnBlock(FloorCenter, FVector(40.f, 40.f, FloorThicknessZ), GridMat);
+	SpawnBlock(FloorCenter, FVector(40.f, 40.f, FloorThicknessZ), GridMat, /*bEnableCollision=*/false);
 
 	// Top of floor in world space, used to seat cover blocks on the ground.
 	const float FloorTopZ = FloorCenter.Z + 50.f * FloorThicknessZ;
@@ -302,7 +310,7 @@ void ACallsignExfilGameMode::SpawnEnvironmentDressing(const FVector& Origin)
 	{
 		const float HalfHeight = 50.f * C.Scale.Z;
 		const FVector Loc(Origin.X + C.OffsetXY.X, Origin.Y + C.OffsetXY.Y, FloorTopZ + HalfHeight);
-		if (SpawnBlock(Loc, C.Scale, /*Mat*/ nullptr))
+		if (SpawnBlock(Loc, C.Scale, /*Mat*/ nullptr, /*bEnableCollision=*/true))
 		{
 			++BlockCount;
 		}
