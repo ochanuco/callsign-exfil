@@ -3,10 +3,13 @@
 #include "CallsignDebugHUD.h"
 
 #include "CallsignMessageBus.h"
+#include "DrawDebugHelpers.h"
 #include "Engine/Canvas.h"
 #include "Engine/World.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
+#include "Kismet/GameplayStatics.h"
+#include "Pawns/CallsignRifleEnemy.h"
 #include "Turn/CallsignTurnSystem.h"
 #include "LineOfSight/CallsignLineOfSightService.h"
 #include "Data/CallsignTypes.h"
@@ -28,7 +31,7 @@ void ACallsignDebugHUD::DrawHUD()
                 return;
         }
 
-        if (!bShowTurnInfo && !bShowLoSPreview && !bShowMessageLog && !bShowKeyHelp)
+        if (!bShowTurnInfo && !bShowLoSPreview && !bShowMessageLog && !bShowKeyHelp && !bShowTargetingPreview)
         {
                 return;
         }
@@ -93,6 +96,54 @@ void ACallsignDebugHUD::DrawHUD()
 
                         const FLinearColor Color = Result.bHasLineOfSight ? LosOkColor : LosBlockedColor;
                         DrawLine(FromScreen.X, FromScreen.Y, ToScreen.X, ToScreen.Y, Color, 2.0f);
+                }
+        }
+
+        // ---- 2b'. Targeting preview ----
+        // During the player's turn, draw an amber line from the player to the
+        // nearest enemy (the actor that pressing `2` would shoot) plus a ring at
+        // the enemy's feet so the player can see who is being targeted.
+        if (bShowTargetingPreview)
+        {
+                UCallsignTurnSystem* TurnSys = World->GetSubsystem<UCallsignTurnSystem>();
+                APlayerController* PCT = GetOwningPlayerController();
+                APawn* PlayerP = PCT ? PCT->GetPawn() : nullptr;
+                if (TurnSys && PlayerP && TurnSys->GetCurrentParticipant() == PlayerP)
+                {
+                        TArray<AActor*> Enemies;
+                        UGameplayStatics::GetAllActorsOfClass(World, ACallsignRifleEnemy::StaticClass(), Enemies);
+                        AActor* Nearest = nullptr;
+                        float NearestDistSq = TNumericLimits<float>::Max();
+                        const FVector PLoc = PlayerP->GetActorLocation();
+                        for (AActor* E : Enemies)
+                        {
+                                if (!E)
+                                {
+                                        continue;
+                                }
+                                const float DSq = FVector::DistSquared(PLoc, E->GetActorLocation());
+                                if (DSq < NearestDistSq)
+                                {
+                                        NearestDistSq = DSq;
+                                        Nearest = E;
+                                }
+                        }
+                        if (Nearest)
+                        {
+                                const FColor TargetColor(255, 220, 80); // amber
+                                const FVector ELoc = Nearest->GetActorLocation();
+                                // Per-frame redraw via tiny lifetime so it appears continuously.
+                                DrawDebugLine(World, PLoc, ELoc, TargetColor,
+                                        /*bPersistent*/ false, /*Lifetime*/ 0.05f,
+                                        /*DepthPriority*/ SDPG_Foreground, /*Thickness*/ 2.5f);
+                                // Ring around the target's feet (capsule half-height ~88).
+                                const FVector RingCenter = ELoc + FVector(0.f, 0.f, -88.f);
+                                DrawDebugCircle(World, RingCenter, /*Radius*/ 70.f, /*Segments*/ 24,
+                                        TargetColor, /*bPersistent*/ false, /*Lifetime*/ 0.05f,
+                                        /*DepthPriority*/ SDPG_Foreground, /*Thickness*/ 2.5f,
+                                        /*YAxis*/ FVector(0.f, 1.f, 0.f), /*XAxis*/ FVector(1.f, 0.f, 0.f),
+                                        /*bDrawAxis*/ false);
+                        }
                 }
         }
 

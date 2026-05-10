@@ -55,6 +55,10 @@ public:
         UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Callsign|HUD")
         bool bShowKeyHelp = true;
 
+        /** Toggle the player-turn targeting preview (line + ring on the would-be shoot target). */
+        UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Callsign|HUD")
+        bool bShowTargetingPreview = true;
+
 protected:
 
         virtual void BeginPlay() override;
