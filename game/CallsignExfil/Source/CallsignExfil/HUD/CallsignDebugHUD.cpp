@@ -11,9 +11,8 @@
 #include "GameFramework/Character.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
-#include "Kismet/GameplayStatics.h"
+#include "Pawns/CallsignTargeting.h"
 #include "Node/CallsignNode.h"
-#include "Pawns/CallsignRifleEnemy.h"
 #include "Turn/CallsignTurnSystem.h"
 #include "LineOfSight/CallsignLineOfSightService.h"
 #include "Data/CallsignTypes.h"
@@ -114,24 +113,8 @@ void ACallsignDebugHUD::DrawHUD()
                 APawn* PlayerP = PCT ? PCT->GetPawn() : nullptr;
                 if (TurnSys && PlayerP && TurnSys->GetCurrentParticipant() == PlayerP)
                 {
-                        TArray<AActor*> Enemies;
-                        UGameplayStatics::GetAllActorsOfClass(World, ACallsignRifleEnemy::StaticClass(), Enemies);
-                        AActor* Nearest = nullptr;
-                        float NearestDistSq = TNumericLimits<float>::Max();
                         const FVector PLoc = PlayerP->GetActorLocation();
-                        for (AActor* E : Enemies)
-                        {
-                                if (!E)
-                                {
-                                        continue;
-                                }
-                                const float DSq = FVector::DistSquared(PLoc, E->GetActorLocation());
-                                if (DSq < NearestDistSq)
-                                {
-                                        NearestDistSq = DSq;
-                                        Nearest = E;
-                                }
-                        }
+                        AActor* Nearest = CallsignTargeting::FindNearestRifleEnemy(World, PLoc);
                         if (Nearest)
                         {
                                 const FColor TargetColor(255, 220, 80); // amber
