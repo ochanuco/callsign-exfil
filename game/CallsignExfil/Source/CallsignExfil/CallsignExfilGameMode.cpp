@@ -275,6 +275,10 @@ void ACallsignExfilGameMode::SpawnEnvironmentDressing(const FVector& Origin)
 				Comp->SetMaterial(0, Mat);
 			}
 		}
+		// Dressing voxels are spawned once at BeginPlay and never moved
+		// after. Set Mobility back to Static so the engine can fold them
+		// into static-rendering paths instead of dynamic-transform ones.
+		A->SetMobility(EComponentMobility::Static);
 		return A;
 	};
 
@@ -345,12 +349,16 @@ void ACallsignExfilGameMode::SpawnEnvironmentDressing(const FVector& Origin)
 		{  2, -1, 1 },
 		{  1,  2, 1 },
 		{ -2,  1, 1 },
-		// Sandbag-shaped low wall on the west flank, 3 voxels long.
-		{ -5, -1, 1 }, { -5, 0, 1 }, { -5, 1, 1 },
-		// Two outer pillars (4 voxels tall) at the floor corners (±6) so
-		// they sit on a real floor voxel rather than floating in space.
-		{ -6, -6, 4 },
-		{  6,  6, 4 },
+		// Sandbag-shaped wall on the west flank: 3 voxels long x 2 deep
+		// x 2 tall (12 voxels). Substantial enough to read as a real wall
+		// rather than a thin row.
+		{ -5, -1, 2 }, { -5, 0, 2 }, { -5, 1, 2 },
+		{ -6, -1, 2 }, { -6, 0, 2 }, { -6, 1, 2 },
+		// Two outer pillars at opposite floor corners. 2x2 footprint x 4
+		// voxels tall (16 voxels each) so they read as solid pillars
+		// instead of poles.
+		{ -6, -6, 4 }, { -5, -6, 4 }, { -6, -5, 4 }, { -5, -5, 4 },
+		{  6,  6, 4 }, {  5,  6, 4 }, {  6,  5, 4 }, {  5,  5, 4 },
 	};
 
 	int32 CoverCount = 0;
