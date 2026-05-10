@@ -4,6 +4,9 @@
 #include "CallsignRifleEnemyController.h"
 #include "Node/CallsignNode.h"
 #include "Node/CallsignNodeMovement.h"
+#include "Components/CapsuleComponent.h"
+#include "Components/StaticMeshComponent.h"
+#include "UObject/ConstructorHelpers.h"
 
 ACallsignRifleEnemy::ACallsignRifleEnemy()
 {
@@ -11,6 +14,19 @@ ACallsignRifleEnemy::ACallsignRifleEnemy()
 
         AIControllerClass = ACallsignRifleEnemyController::StaticClass();
         AutoPossessAI = EAutoPossessAI::PlacedInWorldOrSpawned;
+
+        // Phase 1 debug visual: child cube mesh attached to the capsule so the enemy
+        // is visible without configuring a skeletal mesh.
+        DebugMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("DebugMesh"));
+        DebugMesh->SetupAttachment(GetCapsuleComponent());
+        static ConstructorHelpers::FObjectFinder<UStaticMesh> CubeMeshFinder(TEXT("/Engine/BasicShapes/Cube.Cube"));
+        if (CubeMeshFinder.Succeeded())
+        {
+                DebugMesh->SetStaticMesh(CubeMeshFinder.Object);
+        }
+        DebugMesh->SetRelativeScale3D(FVector(0.5f, 0.5f, 1.5f));
+        DebugMesh->SetRelativeLocation(FVector(0.f, 0.f, -45.f));
+        DebugMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 }
 
 ACallsignNode* ACallsignRifleEnemy::GetCurrentNode_Implementation() const
@@ -25,8 +41,18 @@ void ACallsignRifleEnemy::MoveToNode_Implementation(ACallsignNode* TargetNode)
 
 void ACallsignRifleEnemy::BeginTurn_Implementation()
 {
-        // TODO Phase 1 impl: hook into AAIController-driven decision logic.
         bTurnFinished = false;
+
+        // Delegate to the AIController which actually decides + moves + ends the turn.
+        if (ACallsignRifleEnemyController* AIC = Cast<ACallsignRifleEnemyController>(GetController()))
+        {
+                AIC->BeginTurn();
+        }
+        else
+        {
+                UE_LOG(LogTemp, Warning, TEXT("[Pawn] %s BeginTurn: no ACallsignRifleEnemyController possessing this pawn"),
+                        *GetNameSafe(this));
+        }
 }
 
 bool ACallsignRifleEnemy::IsTurnFinished_Implementation() const
