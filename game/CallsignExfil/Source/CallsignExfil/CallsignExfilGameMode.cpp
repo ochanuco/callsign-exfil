@@ -85,10 +85,24 @@ void ACallsignExfilGameMode::HandleAutoAdvance()
 	{
 		return;
 	}
-	if (UCallsignTurnSystem* TurnSys = World->GetSubsystem<UCallsignTurnSystem>())
+	UCallsignTurnSystem* TurnSys = World->GetSubsystem<UCallsignTurnSystem>();
+	if (!TurnSys)
 	{
-		TurnSys->EndCurrentTurn();
+		return;
 	}
+
+	// Skip auto-advance while it is the local player's turn — the player
+	// must end their turn explicitly (e.g. CsxEndTurn / key `4`).
+	// Enemy turns continue to auto-tick so the demo cycle stays observable.
+	if (APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(this, 0))
+	{
+		if (TurnSys->GetCurrentParticipant() == PlayerPawn)
+		{
+			return;
+		}
+	}
+
+	TurnSys->EndCurrentTurn();
 }
 
 void ACallsignExfilGameMode::SpawnPhase1Demo()
