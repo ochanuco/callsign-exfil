@@ -34,6 +34,13 @@ void ACallsignExfilPlayerController::BeginPlay()
 {
 	Super::BeginPlay();
 
+	// Phase 1 demo: turn-based gameplay needs a visible cursor for click-to-move
+	// on adjacent nodes. Enable click + mouseover events so we can hit-test the
+	// world under the cursor in the LMB handler.
+	bShowMouseCursor = true;
+	bEnableClickEvents = true;
+	bEnableMouseOverEvents = true;
+
 	// only spawn touch controls on local player controllers
 	if (ShouldUseTouchControls() && IsLocalPlayerController())
 	{
@@ -117,6 +124,8 @@ void ACallsignExfilPlayerController::SetupInputComponent()
 		InputComponent->BindKey(EKeys::Two,   IE_Pressed, this, &ACallsignExfilPlayerController::CsxShoot);
 		InputComponent->BindKey(EKeys::Three, IE_Pressed, this, &ACallsignExfilPlayerController::CsxReload);
 		InputComponent->BindKey(EKeys::Four,  IE_Pressed, this, &ACallsignExfilPlayerController::CsxEndTurn);
+		InputComponent->BindKey(EKeys::LeftMouseButton, IE_Pressed, this,
+			&ACallsignExfilPlayerController::HandleLeftClickToMoveNode);
 	}
 
 	// only add IMCs for local player controllers
@@ -548,4 +557,32 @@ void ACallsignExfilPlayerController::CsxStatus()
 		Inv->GetAmmoCount(ECallsignAmmoType::Light),
 		Inv->GetAmmoCount(ECallsignAmmoType::Shell),
 		Inv->GetAmmoCount(ECallsignAmmoType::Heavy));
+}
+
+ACallsignNode* ACallsignExfilPlayerController::GetNodeUnderCursor() const
+{
+	FHitResult Hit;
+	if (!GetHitResultUnderCursor(ECC_Visibility, /*bTraceComplex*/ false, Hit))
+	{
+		return nullptr;
+	}
+	return Cast<ACallsignNode>(Hit.GetActor());
+}
+
+void ACallsignExfilPlayerController::HandleLeftClickToMoveNode()
+{
+	ACallsignNode* Hovered = GetNodeUnderCursor();
+	if (!Hovered)
+	{
+		// No node under cursor; ignore (clicks on empty world or non-node actors).
+		return;
+	}
+	if (!CanMoveToNode(Hovered))
+	{
+		UE_LOG(LogTemp, Display, TEXT("[PC] click rejected on %s (not adjacent / occupied / not my turn)"),
+			*GetNameSafe(Hovered));
+		return;
+	}
+	UE_LOG(LogTemp, Display, TEXT("[PC] click → TryMoveToNode %s"), *GetNameSafe(Hovered));
+	TryMoveToNode(Hovered);
 }
