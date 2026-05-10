@@ -31,7 +31,8 @@ public class CallsignExfil : ModuleRules
 			"CallsignExfil/Camera",
 			"CallsignExfil/LineOfSight",
 			"CallsignExfil/Combat",
-			"CallsignExfil/Pawns"
+			"CallsignExfil/Pawns",
+			"CallsignExfil/HUD"
 		});
 
 		// Uncomment if you are using Slate UI
