@@ -59,11 +59,11 @@ void ACallsignDebugHUD::DrawHUD()
 
                         const FString CurrentName = GetNameSafe(TurnSys->GetCurrentParticipant());
                         const FString InfoString = FString::Printf(TEXT("Phase=%s Current=%s"), *PhaseStr, *CurrentName);
-                        DrawText(InfoString, FLinearColor::White, 30.f, 30.f, /*Font*/ nullptr, /*Scale*/ 1.2f, false);
+                        DrawText(InfoString, FLinearColor::White, 30.f, 30.f, /*Font*/ nullptr, /*Scale*/ 2.4f, false);
                 }
                 else
                 {
-                        DrawText(TEXT("[Turn] subsystem not available"), FLinearColor::White, 30.f, 30.f, /*Font*/ nullptr, /*Scale*/ 1.2f, false);
+                        DrawText(TEXT("[Turn] subsystem not available"), FLinearColor::White, 30.f, 30.f, /*Font*/ nullptr, /*Scale*/ 2.4f, false);
                 }
         }
 
@@ -108,9 +108,10 @@ void ACallsignDebugHUD::DrawHUD()
                         if (Active.Num() > 0)
                         {
                                 const float Now = World->GetTimeSeconds();
-                                const float PanelWidth = 600.f;
-                                const float LineStep = 22.f;
-                                const float BottomMargin = 40.f;
+                                const float TextScale = 2.0f;
+                                const float PanelWidth = 900.f;          // wider to fit larger glyphs
+                                const float LineStep = 44.f;             // ~22 * TextScale
+                                const float BottomMargin = 60.f;
                                 const float FadeWindow = 1.5f;
 
                                 // Newest entries are at the END of the array. Render newest
@@ -147,7 +148,7 @@ void ACallsignDebugHUD::DrawHUD()
                                         FLinearColor LineColor = Msg.Color;
                                         LineColor.A *= Alpha;
 
-                                        DrawText(Msg.Text, LineColor, X, Y, /*Font*/ nullptr, /*Scale*/ 1.0f, false);
+                                        DrawText(Msg.Text, LineColor, X, Y, /*Font*/ nullptr, TextScale, false);
                                 }
                         }
                 }
