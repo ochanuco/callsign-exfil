@@ -46,6 +46,56 @@ void ACallsignExfilPlayerController::BeginPlay()
 		}
 
 	}
+
+	// Subscribe to the world turn system so we can drive camera/IMC mode
+	// automatically on player turn boundaries.
+	if (UWorld* World = GetWorld())
+	{
+		if (UCallsignTurnSystem* TurnSys = World->GetSubsystem<UCallsignTurnSystem>())
+		{
+			TurnSys->OnTurnBegin.AddDynamic(this, &ACallsignExfilPlayerController::HandleTurnBegin);
+			TurnSys->OnTurnEnd.AddDynamic(this, &ACallsignExfilPlayerController::HandleTurnEnd);
+			UE_LOG(LogTemp, Display, TEXT("[PC] BeginPlay: subscribed to TurnSystem events"));
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[PC] BeginPlay: no TurnSystem subsystem to subscribe to"));
+		}
+	}
+}
+
+void ACallsignExfilPlayerController::EndPlay(const EEndPlayReason::Type Reason)
+{
+	if (UWorld* World = GetWorld())
+	{
+		if (UCallsignTurnSystem* TurnSys = World->GetSubsystem<UCallsignTurnSystem>())
+		{
+			TurnSys->OnTurnBegin.RemoveDynamic(this, &ACallsignExfilPlayerController::HandleTurnBegin);
+			TurnSys->OnTurnEnd.RemoveDynamic(this, &ACallsignExfilPlayerController::HandleTurnEnd);
+		}
+	}
+
+	Super::EndPlay(Reason);
+}
+
+void ACallsignExfilPlayerController::HandleTurnBegin(AActor* Who)
+{
+	UE_LOG(LogTemp, Display, TEXT("[PC] HandleTurnBegin: %s"), *GetNameSafe(Who));
+
+	if (Who != nullptr && Who == GetPawn())
+	{
+		SetMode(ECallsignControllerMode::NodeSelect);
+	}
+}
+
+void ACallsignExfilPlayerController::HandleTurnEnd(AActor* Who)
+{
+	UE_LOG(LogTemp, Display, TEXT("[PC] HandleTurnEnd: %s"), *GetNameSafe(Who));
+
+	if (Who != nullptr && Who == GetPawn())
+	{
+		SetMode(ECallsignControllerMode::Idle);
+	}
 }
 
 void ACallsignExfilPlayerController::SetupInputComponent()

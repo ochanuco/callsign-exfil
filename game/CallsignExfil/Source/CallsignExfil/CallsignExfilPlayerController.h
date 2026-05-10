@@ -83,11 +83,22 @@ protected:
 	/** Gameplay initialization */
 	virtual void BeginPlay() override;
 
+	/** Gameplay teardown; unbinds turn-system delegates. */
+	virtual void EndPlay(const EEndPlayReason::Type Reason) override;
+
 	/** Input mapping context setup */
 	virtual void SetupInputComponent() override;
 
 	/** Returns true if the player should use UMG touch controls */
 	bool ShouldUseTouchControls() const;
+
+	/** Bound to UCallsignTurnSystem::OnTurnBegin; swaps to NodeSelect when our turn begins. */
+	UFUNCTION()
+	void HandleTurnBegin(AActor* Who);
+
+	/** Bound to UCallsignTurnSystem::OnTurnEnd; swaps to Idle when our turn ends. */
+	UFUNCTION()
+	void HandleTurnEnd(AActor* Who);
 
 public:
 
