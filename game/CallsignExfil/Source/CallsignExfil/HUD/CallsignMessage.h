@@ -29,7 +29,7 @@ struct CALLSIGNEXFIL_API FCallsignMessage
         UPROPERTY(BlueprintReadOnly, Category = "Callsign|Messaging")
         float SpawnedAt = 0.f;
 
-        /** Seconds the entry remains visible. -1 means the entry never expires. */
+        /** Display lifetime in seconds. <= 0 means persist until evicted by MaxLines. */
         UPROPERTY(BlueprintReadOnly, Category = "Callsign|Messaging")
         float Lifetime = 8.f;
 
