@@ -23,14 +23,18 @@ ACallsignNode::ACallsignNode()
         Visual->SetCollisionResponseToAllChannels(ECR_Ignore);
         Visual->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
 
-        // Phase 1 default visual: engine basic cube scaled to a tile-shaped slab.
-        // Designers can still override the StaticMesh in BP/level if desired.
+        // Phase 1 default visual: engine basic cube. The Visual represents a
+        // single cell of the voxel grid laid down by SpawnEnvironmentDressing,
+        // not a thin "board" sitting on top of it — full 1m^3, with its top
+        // face aligned to the node actor's Z so it reads as the same surface
+        // as the surrounding floor voxels (FloorTopZ = Origin.Z - 90).
         static ConstructorHelpers::FObjectFinder<UStaticMesh> CubeMeshFinder(TEXT("/Engine/BasicShapes/Cube.Cube"));
         if (CubeMeshFinder.Succeeded())
         {
                 Visual->SetStaticMesh(CubeMeshFinder.Object);
         }
-        Visual->SetRelativeScale3D(FVector(1.0f, 1.0f, 0.1f));
+        Visual->SetRelativeLocation(FVector(0.f, 0.f, -50.f));
+        Visual->SetRelativeScale3D(FVector(1.0f, 1.0f, 1.0f));
 }
 
 bool ACallsignNode::IsOccupied() const

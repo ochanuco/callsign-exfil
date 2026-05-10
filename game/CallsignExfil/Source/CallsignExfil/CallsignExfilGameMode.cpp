@@ -145,13 +145,6 @@ void ACallsignExfilGameMode::SpawnPhase1Demo()
 	const float Spacing = 300.f;
 	const FVector Origin = PlayerPawn->GetActorLocation();
 
-	// Drop the floor + cover dressing first so node tiles spawn on top of
-	// the visible ground rather than into an empty void.
-	if (bSpawnEnvironmentDressing)
-	{
-		SpawnEnvironmentDressing(Origin);
-	}
-
 	UClass* NodeClass = Phase1NodeClass.Get() ? Phase1NodeClass.Get() : ACallsignNode::StaticClass();
 	UClass* EnemyClass = Phase1EnemyClass.Get() ? Phase1EnemyClass.Get() : ACallsignRifleEnemy::StaticClass();
 
@@ -185,6 +178,14 @@ void ACallsignExfilGameMode::SpawnPhase1Demo()
 			if (j > 0 && Grid[i][j - 1]) { N->Adjacent.Add(Grid[i][j - 1]); }
 			if (j < 2 && Grid[i][j + 1]) { N->Adjacent.Add(Grid[i][j + 1]); }
 		}
+	}
+
+	// Drop the voxel floor + cover dressing AFTER nodes are spawned so the
+	// dressing pass can read each node's actor location and skip the floor
+	// voxel under it (the node's 1m^3 Visual cube stands in for that cell).
+	if (bSpawnEnvironmentDressing)
+	{
+		SpawnEnvironmentDressing(Origin);
 	}
 
 	// Place the player on the center node via interface dispatch.
@@ -280,22 +281,48 @@ void ACallsignExfilGameMode::SpawnEnvironmentDressing(const FVector& Origin)
 	// Voxel grid: 100 cm cubes (Engine BasicShapes/Cube is 100^3). Aligning
 	// to 100 cm gives "3 voxels = 1 tile move" (node spacing is 300 cm), so
 	// players can read distances directly off the grid. Floor top sits at
-	// Origin.Z - 90 to match the existing Node Z, so tiles look seated on
-	// the ground; cube centers are therefore one half-voxel below that.
+	// Origin.Z - 90 to match the existing Node Z, so each node's 1m^3
+	// Visual cube has its top face flush with the surrounding floor.
 	constexpr float VoxelSize = 100.f;
 	constexpr float HalfVoxel = 50.f;
 	const float FloorTopZ = Origin.Z - 90.f;
 	const float FloorVoxelCenterZ = FloorTopZ - HalfVoxel;
 
+	// Collect the (gx, gy) cells already occupied by ACallsignNode actors
+	// so the floor pass can skip them — the node's own Visual cube renders
+	// the cell instead, which is what removes the "board sitting on top"
+	// look (it's a colored cell of the floor grid rather than a separate
+	// thin slab above it).
+	TSet<FIntPoint> NodeCells;
+	{
+		TArray<AActor*> Nodes;
+		UGameplayStatics::GetAllActorsOfClass(World, ACallsignNode::StaticClass(), Nodes);
+		for (AActor* N : Nodes)
+		{
+			if (!N)
+			{
+				continue;
+			}
+			const FVector NLoc = N->GetActorLocation();
+			const int32 gx = FMath::RoundToInt32((NLoc.X - Origin.X) / VoxelSize);
+			const int32 gy = FMath::RoundToInt32((NLoc.Y - Origin.Y) / VoxelSize);
+			NodeCells.Add(FIntPoint(gx, gy));
+		}
+	}
+
 	// Floor: 13x13 voxels (~13 m square) centered on the origin. Generous
 	// margin around the 3x3 (±300 cm) playable grid so the world doesn't
-	// end abruptly at the outer node ring.
+	// end abruptly at the outer node ring. Cells under nodes are skipped.
 	constexpr int32 FloorRadius = 6;
 	int32 FloorCount = 0;
 	for (int32 i = -FloorRadius; i <= FloorRadius; ++i)
 	{
 		for (int32 j = -FloorRadius; j <= FloorRadius; ++j)
 		{
+			if (NodeCells.Contains(FIntPoint(i, j)))
+			{
+				continue;
+			}
 			const FVector Loc(
 				Origin.X + i * VoxelSize,
 				Origin.Y + j * VoxelSize,
@@ -320,9 +347,10 @@ void ACallsignExfilGameMode::SpawnEnvironmentDressing(const FVector& Origin)
 		{ -2,  1, 1 },
 		// Sandbag-shaped low wall on the west flank, 3 voxels long.
 		{ -5, -1, 1 }, { -5, 0, 1 }, { -5, 1, 1 },
-		// Two outer pillars (4 voxels tall) to frame the playable area.
-		{ -7, -7, 4 },
-		{  7,  7, 4 },
+		// Two outer pillars (4 voxels tall) at the floor corners (±6) so
+		// they sit on a real floor voxel rather than floating in space.
+		{ -6, -6, 4 },
+		{  6,  6, 4 },
 	};
 
 	int32 CoverCount = 0;
@@ -341,8 +369,8 @@ void ACallsignExfilGameMode::SpawnEnvironmentDressing(const FVector& Origin)
 		}
 	}
 
-	UE_LOG(LogTemp, Display, TEXT("[GameMode] EnvironmentDressing: %d floor voxels + %d cover voxels"),
-		FloorCount, CoverCount);
+	UE_LOG(LogTemp, Display, TEXT("[GameMode] EnvironmentDressing: %d floor voxels (%d node cells skipped) + %d cover voxels"),
+		FloorCount, NodeCells.Num(), CoverCount);
 }
 
 void ACallsignExfilGameMode::EquipPhase2DemoLoadout(APawn* Pawn, bool bIsEnemy)
