@@ -85,6 +85,10 @@ public:
         UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Callsign|HUD")
         bool bShowDamagePopups = true;
 
+        /** Toggle the player weapon status panel (mag / durability / pool). */
+        UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Callsign|HUD")
+        bool bShowWeaponStatus = true;
+
         /** How long a popup remains visible (seconds). */
         UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Callsign|HUD",
                 meta = (ClampMin = "0.1", UIMin = "0.1"))
