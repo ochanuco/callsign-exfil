@@ -177,24 +177,38 @@ void ACallsignRifleEnemyController::PerformQueuedAction()
                 return;
         }
 
-        // Filter adjacent nodes: usable if not occupied or self-occupied.
+        // Pick the adjacent node that gets us closest to the player. Forced
+        // movement (no LoS / no weapon) should still advance the engagement
+        // rather than wander, so the demo flow has the enemy actually approach.
+        // Skips occupied / destroyed neighbors. Falls back to "any valid
+        // neighbor" semantics naturally when the player can't be resolved.
         ACallsignNode* Pick = nullptr;
+        float PickDistSq = TNumericLimits<float>::Max();
+        APawn* PlayerPawnForAI = UGameplayStatics::GetPlayerPawn(this, 0);
+        const bool bHasPlayerLoc = PlayerPawnForAI && PlayerPawnForAI != Enemy;
+        const FVector PlayerLoc = bHasPlayerLoc ? PlayerPawnForAI->GetActorLocation() : FVector::ZeroVector;
         for (const TObjectPtr<ACallsignNode>& Adj : CurrentNode->Adjacent)
         {
-                if (!Adj)
+                if (!Adj || Adj->bIsDestroyed)
                 {
                         continue;
                 }
-
                 const bool bSelfOccupied = (Adj->Occupant.Get() == Enemy);
-                if (!Adj->IsOccupied() || bSelfOccupied)
+                if (Adj->IsOccupied() && !bSelfOccupied)
                 {
+                        continue;
+                }
+                const float DSq = bHasPlayerLoc
+                        ? FVector::DistSquared(Adj->GetActorLocation(), PlayerLoc)
+                        : 0.f;
+                if (DSq < PickDistSq)
+                {
+                        PickDistSq = DSq;
                         Pick = Adj;
-                        break; // Phase 1 simplification: first valid neighbor.
                 }
         }
 
-        // TODO Phase 2: weighted choice (high-ground, LoS to player, distance to player).
+        // TODO Phase 4+: high-ground / cover weighting in addition to raw distance.
         if (Pick)
         {
                 ICallsignNodeOccupant::Execute_MoveToNode(Enemy, Pick);
