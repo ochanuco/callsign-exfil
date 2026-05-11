@@ -477,6 +477,24 @@ void ACallsignExfilGameMode::SpawnEnvironmentDressing(const FVector& Origin)
 	UMaterialInterface* GridMat = LoadObject<UMaterialInterface>(
 		nullptr, TEXT("/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial"));
 
+	// Cover voxels share one MID so all crates / sandbag / pillar columns
+	// read as the same warm-earth color rather than the engine's stock
+	// gray. Set both Color and BaseColor; either may be missing on the
+	// source material without affecting the other.
+	UMaterialInterface* BasicShape = LoadObject<UMaterialInterface>(
+		nullptr, TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial"));
+	UMaterialInstanceDynamic* CoverMID = nullptr;
+	if (BasicShape)
+	{
+		CoverMID = UMaterialInstanceDynamic::Create(BasicShape, this);
+		if (CoverMID)
+		{
+			const FLinearColor CoverTan(0.55f, 0.45f, 0.32f, 1.0f);
+			CoverMID->SetVectorParameterValue(TEXT("Color"), CoverTan);
+			CoverMID->SetVectorParameterValue(TEXT("BaseColor"), CoverTan);
+		}
+	}
+
 	FActorSpawnParameters Params;
 	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
@@ -602,7 +620,7 @@ void ACallsignExfilGameMode::SpawnEnvironmentDressing(const FVector& Origin)
 				Origin.X + S.GX * VoxelSize,
 				Origin.Y + S.GY * VoxelSize,
 				FloorTopZ + HalfVoxel + z * VoxelSize);
-			if (SpawnVoxel(Loc, /*Mat*/ nullptr, /*bEnableCollision=*/true))
+			if (SpawnVoxel(Loc, /*Mat*/ CoverMID, /*bEnableCollision=*/true))
 			{
 				++CoverCount;
 			}
