@@ -139,19 +139,55 @@ FCallsignShotResult UCallsignCombatResolver::ResolveShot(const FCallsignShotRequ
                 {
                         TracerColor = Result.bHit ? FColor(255, 80, 80) : FColor(220, 140, 140);
                 }
-                DrawDebugLine(World, Request.From, Request.To, TracerColor,
+                // Tracer beam: two layered lines (outer glow + inner bright core)
+                // read as a beam rather than a debug stroke. SDPG_Foreground bypasses
+                // depth so the line is visible through the player capsule. When LoS
+                // is blocked the beam should END at the blocker, not phase through
+                // it to the original target.
+                FVector TracerEnd = Request.To;
+                if (bLosBlocked)
+                {
+                        if (AActor* Blocker = Result.LosResult.BlockingActor.Get())
+                        {
+                                TracerEnd = Blocker->GetActorLocation();
+                        }
+                }
+                FColor GlowColor = TracerColor;
+                GlowColor.A = 110;
+                DrawDebugLine(World, Request.From, TracerEnd, GlowColor,
                         /*bPersistent*/ false, /*Lifetime*/ 0.6f,
-                        /*DepthPriority*/ SDPG_Foreground, /*Thickness*/ 6.f);
-                // Origin marker on the shooter so the line clearly anchors at the source.
-                DrawDebugSphere(World, Request.From, /*Radius*/ 18.f, /*Segments*/ 10,
-                        TracerColor, /*bPersistent*/ false, /*Lifetime*/ 0.6f,
-                        /*DepthPriority*/ SDPG_Foreground, /*Thickness*/ 2.f);
+                        /*DepthPriority*/ SDPG_Foreground, /*Thickness*/ 14.f);
+                DrawDebugLine(World, Request.From, TracerEnd, TracerColor,
+                        /*bPersistent*/ false, /*Lifetime*/ 0.6f,
+                        /*DepthPriority*/ SDPG_Foreground, /*Thickness*/ 3.f);
+
                 if (Result.bHit)
                 {
-                        // Impact marker at the destination.
-                        DrawDebugSphere(World, Request.To, /*Radius*/ 30.f, /*Segments*/ 12,
-                                TracerColor, /*bPersistent*/ false, /*Lifetime*/ 0.6f,
-                                /*DepthPriority*/ SDPG_Foreground, /*Thickness*/ 2.f);
+                        // Impact ring at the floor under the victim. Use the actor
+                        // bounds so different pawn sizes / cover boxes don't make
+                        // the ring float or sink, then bias a couple of cm up so
+                        // the ring stays visible above the surface.
+                        AActor* Victim = Request.TargetActor.Get();
+                        if (!Victim)
+                        {
+                                Victim = Result.LosResult.BlockingActor.Get();
+                        }
+                        if (Victim)
+                        {
+                                FVector BoundsOrigin;
+                                FVector BoundsExtent;
+                                Victim->GetActorBounds(/*bOnlyCollidingComponents*/ true,
+                                        BoundsOrigin, BoundsExtent);
+                                const FVector ImpactGround(
+                                        BoundsOrigin.X,
+                                        BoundsOrigin.Y,
+                                        BoundsOrigin.Z - BoundsExtent.Z + 2.f);
+                                DrawDebugCircle(World, ImpactGround, /*Radius*/ 60.f, /*Segments*/ 32,
+                                        TracerColor, /*bPersistent*/ false, /*Lifetime*/ 0.6f,
+                                        /*DepthPriority*/ SDPG_Foreground, /*Thickness*/ 3.5f,
+                                        /*YAxis*/ FVector(0.f, 1.f, 0.f), /*XAxis*/ FVector(1.f, 0.f, 0.f),
+                                        /*bDrawAxis*/ false);
+                        }
                 }
         }
 
