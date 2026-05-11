@@ -545,8 +545,12 @@ void ACallsignDebugHUD::DrawHUD()
                         {
                                 continue;
                         }
-                        const FString EnemyHp = FString::Printf(TEXT("%d/%d"),
-                                Enemy->HealthComp->CurrentHealth, Enemy->HealthComp->MaxHealth);
+                        const FString EnemyHp = (Enemy->DisplayIndex > 0)
+                                ? FString::Printf(TEXT("#%d  %d/%d"),
+                                        Enemy->DisplayIndex,
+                                        Enemy->HealthComp->CurrentHealth, Enemy->HealthComp->MaxHealth)
+                                : FString::Printf(TEXT("%d/%d"),
+                                        Enemy->HealthComp->CurrentHealth, Enemy->HealthComp->MaxHealth);
                         DrawText(EnemyHp, FLinearColor(1.0f, 0.4f, 0.4f, 1.0f),
                                 Screen.X - 24.f, Screen.Y, /*Font*/ nullptr, /*Scale*/ 1.4f, false);
                 }
