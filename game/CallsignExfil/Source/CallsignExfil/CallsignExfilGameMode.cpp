@@ -10,6 +10,7 @@
 #include "HUD/CallsignDebugHUD.h"
 #include "HUD/CallsignMessageBus.h"
 #include "Inventory/CallsignInventoryComponent.h"
+#include "Pawns/CallsignHealthComponent.h"
 #include "Weapon/CallsignWeaponInstanceObject.h"
 #include "Data/CallsignSupportTypes.h"
 #include "Data/CallsignWeaponDefinition.h"
@@ -207,29 +208,51 @@ void ACallsignExfilGameMode::SpawnPhase1Demo()
 	// Phase 2 demo: equip the player with a transient handgun-shaped weapon and seed Light ammo.
 	EquipPhase2DemoLoadout(PlayerPawn, /*bIsEnemy=*/false);
 
-	// Spawn the enemy at the (0,0) corner node.
-	ACallsignNode* Corner = Grid[0][0];
-	if (Corner)
+	// Spawn enemies at multiple corners so support strikes have several
+	// targets to pick from and a single PrecisionStrike doesn't end the
+	// demo. Corners chosen so the spawn cells are not on the cardinal
+	// move corridors (i=0/j=0 etc.) the player walks along.
+	ACallsignNode* EnemySpawnNodes[] = {
+		Grid[0][0],  // SW corner
+		Grid[2][2],  // NE corner
+	};
+	int32 EnemyCount = 0;
+	for (ACallsignNode* SpawnNode : EnemySpawnNodes)
 	{
+		if (!SpawnNode)
+		{
+			continue;
+		}
 		ACallsignRifleEnemy* Enemy = World->SpawnActor<ACallsignRifleEnemy>(
 			EnemyClass,
-			Corner->GetActorLocation(),
+			SpawnNode->GetActorLocation(),
 			FRotator::ZeroRotator,
 			Params);
-		if (Enemy && Enemy->GetClass()->ImplementsInterface(UCallsignNodeOccupant::StaticClass()))
+		if (!Enemy)
 		{
-			ICallsignNodeOccupant::Execute_MoveToNode(Enemy, Corner);
+			continue;
 		}
+		if (Enemy->GetClass()->ImplementsInterface(UCallsignNodeOccupant::StaticClass()))
+		{
+			ICallsignNodeOccupant::Execute_MoveToNode(Enemy, SpawnNode);
+		}
+		// Phase 2 demo: rifle + low durability so the demo can observably
+		// reach OnWeaponBroken.
+		EquipPhase2DemoLoadout(Enemy, /*bIsEnemy=*/true);
 
-		// Phase 2 demo: equip the enemy with a transient rifle (low durability) so the demo
-		// observably reaches OnWeaponBroken in a few turns.
-		if (Enemy)
+		// Phase 3 demo tuning: drop enemy HP so kills are observable in a
+		// few turns (1 PrecisionStrike = 40dmg one-shots when MaxHealth=30;
+		// normal shooting = 3 hits at 10dmg).
+		if (UCallsignHealthComponent* HC = Enemy->FindComponentByClass<UCallsignHealthComponent>())
 		{
-			EquipPhase2DemoLoadout(Enemy, /*bIsEnemy=*/true);
+			HC->MaxHealth = 30;
+			HC->CurrentHealth = 30;
 		}
+		++EnemyCount;
 	}
 
-	UE_LOG(LogTemp, Display, TEXT("[GameMode] Phase1Demo spawned: 9 nodes, 1 enemy at corner, player on center"));
+	UE_LOG(LogTemp, Display, TEXT("[GameMode] Phase1Demo spawned: 9 nodes, %d enemies, player on center"),
+		EnemyCount);
 
 	// Phase 2 demo: surface the lifecycle event to the on-screen message log
 	// once after both pawns are equipped (per-pawn equip logs stay in UE_LOG only).
