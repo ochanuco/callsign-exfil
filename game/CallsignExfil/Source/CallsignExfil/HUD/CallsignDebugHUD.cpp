@@ -416,6 +416,13 @@ void ACallsignDebugHUD::DrawHUD()
                         {
                                 if (ACallsignNode* Hovered = CallsignPC->GetNodeUnderCursor())
                                 {
+                                        // Hover ring tuning. Centralized so the two draws
+                                        // can't drift apart on future polish.
+                                        constexpr float HoverRingZOffset = -88.f;
+                                        constexpr float HoverRingRadius = 110.f;
+                                        constexpr int32 HoverRingSegments = 48;
+                                        constexpr float HoverRingGlowThickness = 10.f;
+                                        constexpr float HoverRingCoreThickness = 3.5f;
                                         const bool bClickable = CallsignPC->CanMoveToNode(Hovered);
                                         const FColor HoverColor = bClickable ? FColor(80, 240, 120) : FColor(220, 80, 80);
                                         FColor GlowHover = HoverColor;
@@ -423,15 +430,15 @@ void ACallsignDebugHUD::DrawHUD()
                                         // Anchor on the floor (~2 cm above floor top) instead
                                         // of the node actor center so the ring reads as a
                                         // ground decal.
-                                        const FVector RingCenter = Hovered->GetActorLocation() + FVector(0.f, 0.f, -88.f);
-                                        DrawDebugCircle(World, RingCenter, /*Radius*/ 110.f, /*Segments*/ 48,
+                                        const FVector RingCenter = Hovered->GetActorLocation() + FVector(0.f, 0.f, HoverRingZOffset);
+                                        DrawDebugCircle(World, RingCenter, HoverRingRadius, HoverRingSegments,
                                                 GlowHover, /*bPersistent*/ false, /*Lifetime*/ 0.05f,
-                                                /*DepthPriority*/ SDPG_Foreground, /*Thickness*/ 10.f,
+                                                /*DepthPriority*/ SDPG_Foreground, HoverRingGlowThickness,
                                                 /*YAxis*/ FVector(0.f, 1.f, 0.f), /*XAxis*/ FVector(1.f, 0.f, 0.f),
                                                 /*bDrawAxis*/ false);
-                                        DrawDebugCircle(World, RingCenter, /*Radius*/ 110.f, /*Segments*/ 48,
+                                        DrawDebugCircle(World, RingCenter, HoverRingRadius, HoverRingSegments,
                                                 HoverColor, /*bPersistent*/ false, /*Lifetime*/ 0.05f,
-                                                /*DepthPriority*/ SDPG_Foreground, /*Thickness*/ 3.5f,
+                                                /*DepthPriority*/ SDPG_Foreground, HoverRingCoreThickness,
                                                 /*YAxis*/ FVector(0.f, 1.f, 0.f), /*XAxis*/ FVector(1.f, 0.f, 0.f),
                                                 /*bDrawAxis*/ false);
                                 }
