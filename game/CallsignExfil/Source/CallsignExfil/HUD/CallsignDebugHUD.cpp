@@ -12,10 +12,13 @@
 #include "GameFramework/Character.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
+#include "Inventory/CallsignInventoryComponent.h"
 #include "Pawns/CallsignHealthComponent.h"
 #include "Pawns/CallsignRifleEnemy.h"
 #include "Pawns/CallsignTargeting.h"
 #include "Node/CallsignNode.h"
+#include "Weapon/CallsignWeaponInstanceObject.h"
+#include "Data/CallsignWeaponDefinition.h"
 #include "EngineUtils.h"
 #include "Turn/CallsignTurnSystem.h"
 #include "LineOfSight/CallsignLineOfSightService.h"
@@ -63,7 +66,7 @@ void ACallsignDebugHUD::DrawHUD()
 
         if (!bShowTurnInfo && !bShowLoSPreview && !bShowMessageLog && !bShowKeyHelp
                 && !bShowTargetingPreview && !bShowSupportPreview && !bShowHealthOverlay
-                && !bShowMissionBanner && !bShowDamagePopups)
+                && !bShowMissionBanner && !bShowDamagePopups && !bShowWeaponStatus)
         {
                 return;
         }
@@ -401,6 +404,47 @@ void ACallsignDebugHUD::DrawHUD()
                                 : FLinearColor(0.4f, 1.0f, 0.4f, Alpha);
                         DrawText(Text, Color, Screen.X - 24.f, Screen.Y,
                                 /*Font*/ nullptr, /*Scale*/ 2.2f + 0.6f * Norm, false);
+                }
+        }
+
+        // ---- 2b'''''. Weapon status panel (top-left under HP bar) ----
+        // Shows player's current magazine / durability / pool ammo so the
+        // player can see when to reload without having to press [1].
+        if (bShowWeaponStatus && Canvas)
+        {
+                APlayerController* PCW = GetOwningPlayerController();
+                APawn* PlayerW = PCW ? PCW->GetPawn() : nullptr;
+                UCallsignInventoryComponent* Inv = PlayerW
+                        ? PlayerW->FindComponentByClass<UCallsignInventoryComponent>()
+                        : nullptr;
+                UCallsignWeaponInstanceObject* WI = Inv ? Inv->GetCurrentWeapon() : nullptr;
+                UCallsignWeaponDefinition* Def = WI ? WI->GetWeaponDefinition() : nullptr;
+                if (WI && Def)
+                {
+                        const int32 MagCur = WI->GetMagazineCurrent();
+                        const int32 MagMax = Def->MagazineSize;
+                        const int32 DurCur = WI->GetDurabilityCurrent();
+                        const int32 DurMax = Def->DurabilityMax;
+                        const int32 PoolCur = Inv->GetAmmoCount(Def->AmmoType);
+
+                        const float X = 30.f;
+                        const float Y = 280.f;
+                        FString WeaponLine = FString::Printf(TEXT("MAG %d/%d  DUR %d/%d  POOL %d"),
+                                MagCur, MagMax, DurCur, DurMax, PoolCur);
+                        if (WI->IsBroken())
+                        {
+                                WeaponLine += TEXT("  [BROKEN]");
+                        }
+                        FLinearColor Color = FLinearColor::White;
+                        if (WI->IsBroken())
+                        {
+                                Color = FLinearColor(1.0f, 0.4f, 0.4f, 1.0f);
+                        }
+                        else if (MagCur == 0)
+                        {
+                                Color = FLinearColor(1.0f, 0.85f, 0.3f, 1.0f);
+                        }
+                        DrawText(WeaponLine, Color, X, Y, /*Font*/ nullptr, /*Scale*/ 1.6f, false);
                 }
         }
 
