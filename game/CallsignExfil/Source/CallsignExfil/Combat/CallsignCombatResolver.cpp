@@ -141,20 +141,32 @@ FCallsignShotResult UCallsignCombatResolver::ResolveShot(const FCallsignShotRequ
                 }
                 // Tracer beam: two layered lines (outer glow + inner bright core)
                 // read as a beam rather than a debug stroke. SDPG_Foreground bypasses
-                // depth so the line is visible through the player capsule.
+                // depth so the line is visible through the player capsule. When LoS
+                // is blocked the beam should END at the blocker, not phase through
+                // it to the original target.
+                FVector TracerEnd = Request.To;
+                if (bLosBlocked)
+                {
+                        if (AActor* Blocker = Result.LosResult.BlockingActor.Get())
+                        {
+                                TracerEnd = Blocker->GetActorLocation();
+                        }
+                }
                 FColor GlowColor = TracerColor;
                 GlowColor.A = 110;
-                DrawDebugLine(World, Request.From, Request.To, GlowColor,
+                DrawDebugLine(World, Request.From, TracerEnd, GlowColor,
                         /*bPersistent*/ false, /*Lifetime*/ 0.6f,
                         /*DepthPriority*/ SDPG_Foreground, /*Thickness*/ 14.f);
-                DrawDebugLine(World, Request.From, Request.To, TracerColor,
+                DrawDebugLine(World, Request.From, TracerEnd, TracerColor,
                         /*bPersistent*/ false, /*Lifetime*/ 0.6f,
                         /*DepthPriority*/ SDPG_Foreground, /*Thickness*/ 3.f);
 
                 if (Result.bHit)
                 {
-                        // Impact ring on the floor under the target. Reads as a
-                        // ground decal instead of a wireframe sphere floating mid-air.
+                        // Impact ring at the floor under the victim. Use the actor
+                        // bounds so different pawn sizes / cover boxes don't make
+                        // the ring float or sink, then bias a couple of cm up so
+                        // the ring stays visible above the surface.
                         AActor* Victim = Request.TargetActor.Get();
                         if (!Victim)
                         {
@@ -162,7 +174,14 @@ FCallsignShotResult UCallsignCombatResolver::ResolveShot(const FCallsignShotRequ
                         }
                         if (Victim)
                         {
-                                const FVector ImpactGround = Victim->GetActorLocation() + FVector(0.f, 0.f, -85.f);
+                                FVector BoundsOrigin;
+                                FVector BoundsExtent;
+                                Victim->GetActorBounds(/*bOnlyCollidingComponents*/ true,
+                                        BoundsOrigin, BoundsExtent);
+                                const FVector ImpactGround(
+                                        BoundsOrigin.X,
+                                        BoundsOrigin.Y,
+                                        BoundsOrigin.Z - BoundsExtent.Z + 2.f);
                                 DrawDebugCircle(World, ImpactGround, /*Radius*/ 60.f, /*Segments*/ 32,
                                         TracerColor, /*bPersistent*/ false, /*Lifetime*/ 0.6f,
                                         /*DepthPriority*/ SDPG_Foreground, /*Thickness*/ 3.5f,
