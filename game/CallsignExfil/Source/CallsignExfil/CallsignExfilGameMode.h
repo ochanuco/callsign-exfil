@@ -10,6 +10,18 @@
 
 class ACallsignNode;
 class ACallsignRifleEnemy;
+class UCallsignHealthComponent;
+
+/** Outcome state of the demo round. */
+UENUM(BlueprintType)
+enum class ECallsignMissionResult : uint8
+{
+	InProgress,
+	Victory,
+	Defeat,
+};
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FCallsignOnMissionResultChanged, ECallsignMissionResult, NewResult);
 
 /**
  *  Simple GameMode for a third person game
@@ -62,6 +74,14 @@ public:
 	UPROPERTY(EditDefaultsOnly, Category = "Callsign|Phase1Demo")
 	TSubclassOf<ACallsignNode> Phase1NodeClass;
 
+	/** Current mission outcome. Transitions only forward (InProgress→Victory/Defeat). */
+	UPROPERTY(BlueprintReadOnly, Category = "Callsign|Mission")
+	ECallsignMissionResult MissionResult = ECallsignMissionResult::InProgress;
+
+	/** Broadcast once when MissionResult leaves InProgress. */
+	UPROPERTY(BlueprintAssignable, Category = "Callsign|Mission")
+	FCallsignOnMissionResultChanged OnMissionResultChanged;
+
 protected:
 
 	virtual void BeginPlay() override;
@@ -98,8 +118,26 @@ private:
 	 */
 	void EquipPhase2DemoLoadout(APawn* Pawn, bool bIsEnemy);
 
+	/** Subscribes to the player's + each enemy's HealthComp.OnDied. */
+	void HookMissionTriggers(APawn* PlayerPawn, const TArray<ACallsignRifleEnemy*>& Enemies);
+
+	/** Bound to every tracked pawn's HealthComp.OnDied to evaluate win/lose. */
+	UFUNCTION()
+	void HandlePawnDied(UCallsignHealthComponent* HealthComp);
+
+	/** Sets MissionResult and stops the auto-advance timer; broadcasts the change. */
+	void SetMissionResult(ECallsignMissionResult NewResult);
+
 	/** Handle for the auto-advance timer. */
 	FTimerHandle AutoAdvanceTimerHandle;
+
+	/** Cached so HandlePawnDied can tell "player died vs enemy died" without re-resolving. */
+	UPROPERTY(Transient)
+	TWeakObjectPtr<APawn> TrackedPlayerPawn;
+
+	/** Cached enemy list for live-count checks. */
+	UPROPERTY(Transient)
+	TArray<TWeakObjectPtr<ACallsignRifleEnemy>> TrackedEnemies;
 };
 
 

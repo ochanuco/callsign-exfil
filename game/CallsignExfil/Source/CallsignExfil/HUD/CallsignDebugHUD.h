@@ -73,6 +73,10 @@ public:
         UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Callsign|HUD")
         bool bShowHealthOverlay = true;
 
+        /** Toggle the centered Mission Result banner (Victory / Defeat). */
+        UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Callsign|HUD")
+        bool bShowMissionBanner = true;
+
 protected:
 
         virtual void BeginPlay() override;

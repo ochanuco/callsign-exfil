@@ -9,6 +9,7 @@
 #include "InputMappingContext.h"
 #include "Blueprint/UserWidget.h"
 #include "CallsignExfil.h"
+#include "CallsignExfilGameMode.h"
 #include "Camera/CallsignShoulderCameraComponent.h"
 #include "Combat/CallsignCombatResolver.h"
 #include "Data/CallsignSupportTypes.h"
@@ -17,6 +18,7 @@
 #include "Data/CallsignWeaponTypes.h"
 #include "Support/CallsignSupportSystem.h"
 #include "HUD/CallsignMessageBus.h"
+#include "Kismet/GameplayStatics.h"
 #include "Inventory/CallsignInventoryComponent.h"
 #include "Node/CallsignNode.h"
 #include "Node/CallsignNodeOccupant.h"
@@ -138,6 +140,8 @@ void ACallsignExfilPlayerController::SetupInputComponent()
 		InputComponent->BindKey(EKeys::Five,  IE_Pressed, this, &ACallsignExfilPlayerController::CsxSupportPrecisionStrike);
 		InputComponent->BindKey(EKeys::Six,   IE_Pressed, this, &ACallsignExfilPlayerController::CsxSupportSupplyPod);
 		InputComponent->BindKey(EKeys::Seven, IE_Pressed, this, &ACallsignExfilPlayerController::CsxSupportOrbitalBarrage);
+		// R: restart the current PIE level after mission ends.
+		InputComponent->BindKey(EKeys::R, IE_Pressed, this, &ACallsignExfilPlayerController::CsxRestart);
 		InputComponent->BindKey(EKeys::LeftMouseButton, IE_Pressed, this,
 			&ACallsignExfilPlayerController::HandleLeftClickToMoveNode);
 	}
@@ -243,6 +247,18 @@ bool ACallsignExfilPlayerController::IsMyTurn() const
 	if (!TurnSys)
 	{
 		return false;
+	}
+
+	// Once the mission ends, action inputs (5/6/7, click-to-move, etc.) are
+	// no longer meaningful — even though TurnSystem may still report this
+	// pawn as the current participant, gating here makes the player wait
+	// for [R] restart rather than queue extra strikes after victory.
+	if (const ACallsignExfilGameMode* GM = World->GetAuthGameMode<ACallsignExfilGameMode>())
+	{
+		if (GM->MissionResult != ECallsignMissionResult::InProgress)
+		{
+			return false;
+		}
 	}
 
 	return TurnSys->GetCurrentParticipant() == GetPawn();
@@ -641,6 +657,27 @@ void ACallsignExfilPlayerController::CsxSupportSupplyPod()
 void ACallsignExfilPlayerController::CsxSupportOrbitalBarrage()
 {
 	TryRequestSupport(ECallsignSupportType::OrbitalBarrage, GetNodeUnderCursor());
+}
+
+void ACallsignExfilPlayerController::CsxRestart()
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+	// Only allow restart after mission is over — otherwise a stray R press
+	// during play wipes progress. The HUD banner shows "[R] 再出撃" only
+	// in that window so this matches the documented UX.
+	const ACallsignExfilGameMode* GM = World->GetAuthGameMode<ACallsignExfilGameMode>();
+	if (!GM || GM->MissionResult == ECallsignMissionResult::InProgress)
+	{
+		UE_LOG(LogTemp, Display, TEXT("[PC|cmd] CsxRestart ignored: mission still in progress"));
+		return;
+	}
+	const FString CurrentLevel = UGameplayStatics::GetCurrentLevelName(this, /*bRemovePrefixString*/ true);
+	UE_LOG(LogTemp, Display, TEXT("[PC|cmd] CsxRestart: reloading level %s"), *CurrentLevel);
+	UGameplayStatics::OpenLevel(this, FName(*CurrentLevel));
 }
 
 void ACallsignExfilPlayerController::HandleLeftClickToMoveNode()
