@@ -3,6 +3,7 @@
 #include "CallsignSupportSystem.h"
 #include "CallsignSupportResolver.h"
 #include "Data/CallsignSupportTypes.h"
+#include "HUD/CallsignMessageBus.h"
 #include "Turn/CallsignTurnSystem.h"
 #include "Engine/World.h"
 
@@ -172,6 +173,21 @@ void UCallsignSupportSystem::HandleTurnEnd(AActor* /*Participant*/)
 
 		UE_LOG(LogTemp, Display, TEXT("[Support] Resolved: id=%s damageEvents=%d nodesDestroyed=%d"),
 			*Req.RequestId.ToString(), Resolution.DamageEventsEmitted, Resolution.DestroyedNodes.Num());
+
+		// Chat-log feedback so the player can see the queued strike went off
+		// without having to read floating popups + HP bars to confirm.
+		const TCHAR* TypeName = TEXT("支援");
+		if (Req.Definition)
+		{
+			switch (Req.Definition->SupportType)
+			{
+			case ECallsignSupportType::PrecisionStrike: TypeName = TEXT("精密射撃"); break;
+			case ECallsignSupportType::SupplyPod:        TypeName = TEXT("補給投下"); break;
+			case ECallsignSupportType::OrbitalBarrage:   TypeName = TEXT("軌道砲撃"); break;
+			}
+		}
+		CallsignMsg::PushSystem(World, FString::Printf(TEXT("%s 解決。"), TypeName));
+
 		OnSupportResolved.Broadcast(Resolution);
 	}
 }
