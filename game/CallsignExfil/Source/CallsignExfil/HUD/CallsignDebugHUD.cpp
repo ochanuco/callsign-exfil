@@ -88,6 +88,10 @@ void ACallsignDebugHUD::DrawHUD()
                                 DrawText(Sub, FLinearColor::White,
                                         CenterX - 180.f, TopY + TitleH + 16.f,
                                         /*Font*/ nullptr, SubScale, false);
+                                DrawText(TEXT("[R] 再出撃"),
+                                        FLinearColor(1.0f, 0.85f, 0.3f, 1.0f),
+                                        CenterX - 100.f, TopY + TitleH + 60.f,
+                                        /*Font*/ nullptr, SubScale, false);
                         }
                 }
         }

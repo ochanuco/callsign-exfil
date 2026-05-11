@@ -175,6 +175,9 @@ public:
 	/** Phase 3 demo binding: OrbitalBarrage at the cursor node (key 7). */
 	void CsxSupportOrbitalBarrage();
 
+	/** Demo binding: reload the current level. Useful after mission ends. */
+	void CsxRestart();
+
 	/** Mouse cursor → node click handler. Invokes TryMoveToNode if the hit node is adjacent + free. */
 	void HandleLeftClickToMoveNode();
 

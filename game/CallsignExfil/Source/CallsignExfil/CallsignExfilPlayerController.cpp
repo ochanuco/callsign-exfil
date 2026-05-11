@@ -17,6 +17,7 @@
 #include "Data/CallsignWeaponTypes.h"
 #include "Support/CallsignSupportSystem.h"
 #include "HUD/CallsignMessageBus.h"
+#include "Kismet/GameplayStatics.h"
 #include "Inventory/CallsignInventoryComponent.h"
 #include "Node/CallsignNode.h"
 #include "Node/CallsignNodeOccupant.h"
@@ -138,6 +139,8 @@ void ACallsignExfilPlayerController::SetupInputComponent()
 		InputComponent->BindKey(EKeys::Five,  IE_Pressed, this, &ACallsignExfilPlayerController::CsxSupportPrecisionStrike);
 		InputComponent->BindKey(EKeys::Six,   IE_Pressed, this, &ACallsignExfilPlayerController::CsxSupportSupplyPod);
 		InputComponent->BindKey(EKeys::Seven, IE_Pressed, this, &ACallsignExfilPlayerController::CsxSupportOrbitalBarrage);
+		// R: restart the current PIE level after mission ends.
+		InputComponent->BindKey(EKeys::R, IE_Pressed, this, &ACallsignExfilPlayerController::CsxRestart);
 		InputComponent->BindKey(EKeys::LeftMouseButton, IE_Pressed, this,
 			&ACallsignExfilPlayerController::HandleLeftClickToMoveNode);
 	}
@@ -641,6 +644,18 @@ void ACallsignExfilPlayerController::CsxSupportSupplyPod()
 void ACallsignExfilPlayerController::CsxSupportOrbitalBarrage()
 {
 	TryRequestSupport(ECallsignSupportType::OrbitalBarrage, GetNodeUnderCursor());
+}
+
+void ACallsignExfilPlayerController::CsxRestart()
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+	const FString CurrentLevel = UGameplayStatics::GetCurrentLevelName(this, /*bRemovePrefixString*/ true);
+	UE_LOG(LogTemp, Display, TEXT("[PC|cmd] CsxRestart: reloading level %s"), *CurrentLevel);
+	UGameplayStatics::OpenLevel(this, FName(*CurrentLevel));
 }
 
 void ACallsignExfilPlayerController::HandleLeftClickToMoveNode()
