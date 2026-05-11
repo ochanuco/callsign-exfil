@@ -15,9 +15,11 @@
 
 ACallsignRifleEnemy::ACallsignRifleEnemy()
 {
-        // Tick is enabled so the death scale-down anim and hit-flash decay
-        // can advance per frame without setting up a separate timer pump.
+        // Tick is reserved for the hit-flash decay and death scale-down anim.
+        // It's only enabled while one of those is active (see HandleHealthChanged
+        // and HandleDied); idle enemies don't tick.
         PrimaryActorTick.bCanEverTick = true;
+        PrimaryActorTick.bStartWithTickEnabled = false;
 
         AIControllerClass = ACallsignRifleEnemyController::StaticClass();
         AutoPossessAI = EAutoPossessAI::PlacedInWorldOrSpawned;
@@ -83,13 +85,17 @@ void ACallsignRifleEnemy::Tick(float DeltaSeconds)
         Super::Tick(DeltaSeconds);
 
         // Hit flash decay: brightens the MID white for ~0.18s after each hit.
+        // Compute the lerp factor from the PRE-decay remaining so the first
+        // frame after a hit lands at full white (otherwise the flash never
+        // reaches the saturated end of the gradient).
         if (HitFlashRemaining > 0.f && BodyMID)
         {
-                HitFlashRemaining = FMath::Max(0.f, HitFlashRemaining - DeltaSeconds);
-                const float t = HitFlashRemaining / 0.18f;
+                const float Pre = HitFlashRemaining;
+                HitFlashRemaining = FMath::Max(0.f, Pre - DeltaSeconds);
+                const float Norm = FMath::Clamp(Pre / 0.18f, 0.f, 1.f);
                 const FLinearColor TeamRed(0.85f, 0.18f, 0.18f, 1.0f);
                 const FLinearColor FlashWhite(1.0f, 1.0f, 1.0f, 1.0f);
-                const FLinearColor Mix = FMath::Lerp(TeamRed, FlashWhite, t);
+                const FLinearColor Mix = FMath::Lerp(TeamRed, FlashWhite, Norm);
                 BodyMID->SetVectorParameterValue(TEXT("Color"), Mix);
                 BodyMID->SetVectorParameterValue(TEXT("BaseColor"), Mix);
         }
@@ -106,14 +112,18 @@ void ACallsignRifleEnemy::Tick(float DeltaSeconds)
                 AddActorLocalRotation(FRotator(0.f, 0.f, 240.f * DeltaSeconds));
                 if (t >= 1.f)
                 {
+                        // Capsule collision is already dropped up-front in
+                        // HandleDied; here we just hide the mesh.
                         SetActorHiddenInGame(true);
-                        if (UCapsuleComponent* Cap = GetCapsuleComponent())
-                        {
-                                Cap->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-                        }
-                        SetActorTickEnabled(false);
                         DeathAnimElapsed = -1.f;
                 }
+        }
+
+        // Park Tick once both animations are idle so we're not eating frames
+        // on enemies that aren't doing anything.
+        if (HitFlashRemaining <= 0.f && DeathAnimElapsed < 0.f)
+        {
+                SetActorTickEnabled(false);
         }
 }
 
@@ -123,6 +133,7 @@ void ACallsignRifleEnemy::HandleHealthChanged(UCallsignHealthComponent* /*Source
         if (Delta < 0)
         {
                 HitFlashRemaining = 0.18f;
+                SetActorTickEnabled(true);
         }
 }
 
@@ -146,11 +157,16 @@ void ACallsignRifleEnemy::HandleDied(UCallsignHealthComponent* /*Comp*/)
         UE_LOG(LogTemp, Display, TEXT("[Health] Rifle enemy %s down — starting death anim"), *GetName());
         CallsignMsg::PushSystem(GetWorld(), TEXT("敵が制圧された。"));
 
-        // Vacate node occupancy immediately so movement / IsOccupied don't
-        // wait on the visual to finish playing.
+        // Vacate node occupancy AND drop capsule collision immediately so
+        // movement queries / IsOccupied don't see a stale blocker while the
+        // 0.5s visual scale-down plays out.
         if (CurrentNode && CurrentNode->Occupant.Get() == this)
         {
                 CurrentNode->Occupant = nullptr;
+        }
+        if (UCapsuleComponent* Cap = GetCapsuleComponent())
+        {
+                Cap->SetCollisionEnabled(ECollisionEnabled::NoCollision);
         }
         // Mark turn as finished so the AI controller doesn't stall the round
         // if death lands during this enemy's turn.
