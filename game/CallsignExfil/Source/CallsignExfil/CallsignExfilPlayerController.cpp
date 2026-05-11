@@ -696,8 +696,14 @@ void ACallsignExfilPlayerController::CsxSupportPrecisionStrike()
 		return;
 	}
 	// Cursor first, then fall back to the nearest enemy so a precise click
-	// isn't required just to call the strike.
+	// isn't required just to call the strike. A cursor over a destroyed cell
+	// is treated as no-target so the fallback (live enemy) wins instead of
+	// hitting the destroyed-node rejection inside TryRequestSupport.
 	ACallsignNode* Target = GetNodeUnderCursor();
+	if (Target && Target->bIsDestroyed)
+	{
+		Target = nullptr;
+	}
 	if (!Target)
 	{
 		Target = GetNearestEnemyNode();
@@ -720,6 +726,10 @@ void ACallsignExfilPlayerController::CsxSupportSupplyPod()
 	// SupplyPod heals the requester (Phase 3 def). Default to the player's
 	// own cell so dropping cursor anywhere off the grid still heals.
 	ACallsignNode* Target = GetNodeUnderCursor();
+	if (Target && Target->bIsDestroyed)
+	{
+		Target = nullptr;
+	}
 	if (!Target)
 	{
 		Target = GetCurrentPlayerNode();
@@ -740,8 +750,13 @@ void ACallsignExfilPlayerController::CsxSupportOrbitalBarrage()
 		return;
 	}
 	// Area damage; default to the nearest enemy so the AoE still lands on
-	// the most useful cell without cursor work.
+	// the most useful cell without cursor work. Same destroyed-node fallthrough
+	// as the strike variants.
 	ACallsignNode* Target = GetNodeUnderCursor();
+	if (Target && Target->bIsDestroyed)
+	{
+		Target = nullptr;
+	}
 	if (!Target)
 	{
 		Target = GetNearestEnemyNode();
