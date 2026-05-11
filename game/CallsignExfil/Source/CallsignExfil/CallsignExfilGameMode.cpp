@@ -148,6 +148,30 @@ void ACallsignExfilGameMode::HookMissionTriggers(APawn* PlayerPawn, const TArray
 
 	UE_LOG(LogTemp, Display, TEXT("[GameMode] Mission triggers hooked: player=%s enemies=%d"),
 		*GetNameSafe(PlayerPawn), TrackedEnemies.Num());
+
+	// Edge case: zero (or already-dead) enemies at hook time means no OnDied
+	// ever fires, so HandlePawnDied can't transition to Victory. Evaluate the
+	// living count once right after subscribing.
+	int32 LivingAtHook = 0;
+	for (const TWeakObjectPtr<ACallsignRifleEnemy>& EW : TrackedEnemies)
+	{
+		const ACallsignRifleEnemy* E = EW.Get();
+		if (!E)
+		{
+			continue;
+		}
+		if (const UCallsignHealthComponent* EHC = E->FindComponentByClass<UCallsignHealthComponent>())
+		{
+			if (!EHC->bIsDead)
+			{
+				++LivingAtHook;
+			}
+		}
+	}
+	if (LivingAtHook == 0)
+	{
+		SetMissionResult(ECallsignMissionResult::Victory);
+	}
 }
 
 void ACallsignExfilGameMode::HandlePawnDied(UCallsignHealthComponent* HealthComp)
