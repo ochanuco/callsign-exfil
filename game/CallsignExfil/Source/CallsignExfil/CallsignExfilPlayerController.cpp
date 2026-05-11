@@ -688,6 +688,13 @@ ACallsignNode* ACallsignExfilPlayerController::GetNearestEnemyNode() const
 
 void ACallsignExfilPlayerController::CsxSupportPrecisionStrike()
 {
+	// IsMyTurn first so turn-rejection messaging takes priority over the
+	// no-target fallback message (CR ordering).
+	if (!IsMyTurn())
+	{
+		CallsignMsg::PushPlayer(GetWorld(), TEXT("自分のターンではない。"));
+		return;
+	}
 	// Cursor first, then fall back to the nearest enemy so a precise click
 	// isn't required just to call the strike.
 	ACallsignNode* Target = GetNodeUnderCursor();
@@ -705,6 +712,11 @@ void ACallsignExfilPlayerController::CsxSupportPrecisionStrike()
 
 void ACallsignExfilPlayerController::CsxSupportSupplyPod()
 {
+	if (!IsMyTurn())
+	{
+		CallsignMsg::PushPlayer(GetWorld(), TEXT("自分のターンではない。"));
+		return;
+	}
 	// SupplyPod heals the requester (Phase 3 def). Default to the player's
 	// own cell so dropping cursor anywhere off the grid still heals.
 	ACallsignNode* Target = GetNodeUnderCursor();
@@ -722,6 +734,11 @@ void ACallsignExfilPlayerController::CsxSupportSupplyPod()
 
 void ACallsignExfilPlayerController::CsxSupportOrbitalBarrage()
 {
+	if (!IsMyTurn())
+	{
+		CallsignMsg::PushPlayer(GetWorld(), TEXT("自分のターンではない。"));
+		return;
+	}
 	// Area damage; default to the nearest enemy so the AoE still lands on
 	// the most useful cell without cursor work.
 	ACallsignNode* Target = GetNodeUnderCursor();
