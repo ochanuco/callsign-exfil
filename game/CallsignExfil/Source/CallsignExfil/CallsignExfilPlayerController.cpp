@@ -695,6 +695,11 @@ void ACallsignExfilPlayerController::CsxSupportPrecisionStrike()
 	{
 		Target = GetNearestEnemyNode();
 	}
+	if (!Target)
+	{
+		CallsignMsg::PushPlayer(GetWorld(), TEXT("有効な敵が見つからない。"));
+		return;
+	}
 	TryRequestSupport(ECallsignSupportType::PrecisionStrike, Target);
 }
 
@@ -707,6 +712,11 @@ void ACallsignExfilPlayerController::CsxSupportSupplyPod()
 	{
 		Target = GetCurrentPlayerNode();
 	}
+	if (!Target)
+	{
+		CallsignMsg::PushPlayer(GetWorld(), TEXT("自分の位置を特定できない。"));
+		return;
+	}
 	TryRequestSupport(ECallsignSupportType::SupplyPod, Target);
 }
 
@@ -718,6 +728,11 @@ void ACallsignExfilPlayerController::CsxSupportOrbitalBarrage()
 	if (!Target)
 	{
 		Target = GetNearestEnemyNode();
+	}
+	if (!Target)
+	{
+		CallsignMsg::PushPlayer(GetWorld(), TEXT("有効な敵が見つからない。"));
+		return;
 	}
 	TryRequestSupport(ECallsignSupportType::OrbitalBarrage, Target);
 }
