@@ -29,6 +29,27 @@ void ACallsignDebugHUD::BeginPlay()
         UE_LOG(LogTemp, Display, TEXT("[HUD] Initialized"));
 }
 
+void ACallsignDebugHUD::HandleHealthChanged(UCallsignHealthComponent* Source, int32 Delta, AActor* /*Causer*/)
+{
+        // Drop events while popups are disabled so FloatingNumbers can't grow
+        // unboundedly mid-session and dump a backlog when re-enabled.
+        if (!bShowDamagePopups || !Source || Delta == 0)
+        {
+                return;
+        }
+        AActor* Owner = Source->GetOwner();
+        UWorld* World = GetWorld();
+        if (!Owner || !World)
+        {
+                return;
+        }
+        FFloatingNumber Entry;
+        Entry.WorldLoc = Owner->GetActorLocation();
+        Entry.SignedAmount = Delta;
+        Entry.SpawnedAt = World->GetTimeSeconds();
+        FloatingNumbers.Add(Entry);
+}
+
 void ACallsignDebugHUD::DrawHUD()
 {
         Super::DrawHUD();
@@ -42,9 +63,28 @@ void ACallsignDebugHUD::DrawHUD()
 
         if (!bShowTurnInfo && !bShowLoSPreview && !bShowMessageLog && !bShowKeyHelp
                 && !bShowTargetingPreview && !bShowSupportPreview && !bShowHealthOverlay
-                && !bShowMissionBanner)
+                && !bShowMissionBanner && !bShowDamagePopups)
         {
                 return;
+        }
+
+        // Lazy subscribe new pawn HealthComps so freshly-spawned actors get
+        // floating damage popups too. AddUniqueDynamic is idempotent so the
+        // per-frame scan is safe; Phase 3 demo has ~3 pawns max.
+        if (bShowDamagePopups)
+        {
+                for (TActorIterator<APawn> It(World); It; ++It)
+                {
+                        APawn* P = *It;
+                        if (!P)
+                        {
+                                continue;
+                        }
+                        if (UCallsignHealthComponent* HC = P->FindComponentByClass<UCallsignHealthComponent>())
+                        {
+                                HC->OnHealthChanged.AddUniqueDynamic(this, &ACallsignDebugHUD::HandleHealthChanged);
+                        }
+                }
         }
 
         // ---- 0. Mission banner (drawn last conceptually but anchored top-center) ----
@@ -326,6 +366,41 @@ void ACallsignDebugHUD::DrawHUD()
                                 Enemy->HealthComp->CurrentHealth, Enemy->HealthComp->MaxHealth);
                         DrawText(EnemyHp, FLinearColor(1.0f, 0.4f, 0.4f, 1.0f),
                                 Screen.X - 24.f, Screen.Y, /*Font*/ nullptr, /*Scale*/ 1.4f, false);
+                }
+        }
+
+        // ---- 2b''''. Floating damage / heal popups ----
+        // Per-frame: prune expired entries, then render each as a screen-
+        // space "-X" (red) or "+X" (green) that drifts up and fades over
+        // DamagePopupLifetime seconds.
+        if (bShowDamagePopups && !FloatingNumbers.IsEmpty())
+        {
+                const float Now = World->GetTimeSeconds();
+                const float Lifetime = FMath::Max(0.1f, DamagePopupLifetime);
+                FloatingNumbers.RemoveAll([Now, Lifetime](const FFloatingNumber& F)
+                {
+                        return (Now - F.SpawnedAt) > Lifetime;
+                });
+
+                for (const FFloatingNumber& F : FloatingNumbers)
+                {
+                        const float Age = Now - F.SpawnedAt;
+                        const float Norm = FMath::Clamp(Age / Lifetime, 0.f, 1.f);
+                        const float Alpha = 1.f - Norm;
+                        const FVector AnimLoc = F.WorldLoc + FVector(0.f, 0.f, 140.f + 80.f * Norm);
+                        const FVector Screen = Project(AnimLoc);
+                        if (Screen.Z <= 0.f)
+                        {
+                                continue;
+                        }
+                        const FString Text = (F.SignedAmount < 0)
+                                ? FString::Printf(TEXT("-%d"), -F.SignedAmount)
+                                : FString::Printf(TEXT("+%d"), F.SignedAmount);
+                        const FLinearColor Color = (F.SignedAmount < 0)
+                                ? FLinearColor(1.0f, 0.3f, 0.3f, Alpha)
+                                : FLinearColor(0.4f, 1.0f, 0.4f, Alpha);
+                        DrawText(Text, Color, Screen.X - 24.f, Screen.Y,
+                                /*Font*/ nullptr, /*Scale*/ 2.2f + 0.6f * Norm, false);
                 }
         }
 

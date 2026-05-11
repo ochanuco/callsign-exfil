@@ -27,11 +27,12 @@ int32 UCallsignHealthComponent::ApplyHeal(int32 Amount)
 	{
 		UE_LOG(LogTemp, Display, TEXT("[Health] %s +%d (%d/%d)"),
 			*GetNameSafe(GetOwner()), Restored, CurrentHealth, MaxHealth);
+		OnHealthChanged.Broadcast(this, Restored, /*Causer*/ nullptr);
 	}
 	return Restored;
 }
 
-int32 UCallsignHealthComponent::ApplyDamage(int32 Amount, AActor* /*Causer*/)
+int32 UCallsignHealthComponent::ApplyDamage(int32 Amount, AActor* Causer)
 {
 	if (bIsDead || Amount <= 0)
 	{
@@ -43,6 +44,11 @@ int32 UCallsignHealthComponent::ApplyDamage(int32 Amount, AActor* /*Causer*/)
 
 	UE_LOG(LogTemp, Display, TEXT("[Health] %s -%d (%d/%d)"),
 		*GetNameSafe(GetOwner()), Applied, CurrentHealth, MaxHealth);
+
+	if (Applied > 0)
+	{
+		OnHealthChanged.Broadcast(this, -Applied, Causer);
+	}
 
 	if (CurrentHealth == 0 && !bIsDead)
 	{
