@@ -9,6 +9,7 @@
 #include "InputMappingContext.h"
 #include "Blueprint/UserWidget.h"
 #include "CallsignExfil.h"
+#include "CallsignExfilGameMode.h"
 #include "Camera/CallsignShoulderCameraComponent.h"
 #include "Combat/CallsignCombatResolver.h"
 #include "Data/CallsignSupportTypes.h"
@@ -246,6 +247,18 @@ bool ACallsignExfilPlayerController::IsMyTurn() const
 	if (!TurnSys)
 	{
 		return false;
+	}
+
+	// Once the mission ends, action inputs (5/6/7, click-to-move, etc.) are
+	// no longer meaningful — even though TurnSystem may still report this
+	// pawn as the current participant, gating here makes the player wait
+	// for [R] restart rather than queue extra strikes after victory.
+	if (const ACallsignExfilGameMode* GM = World->GetAuthGameMode<ACallsignExfilGameMode>())
+	{
+		if (GM->MissionResult != ECallsignMissionResult::InProgress)
+		{
+			return false;
+		}
 	}
 
 	return TurnSys->GetCurrentParticipant() == GetPawn();
