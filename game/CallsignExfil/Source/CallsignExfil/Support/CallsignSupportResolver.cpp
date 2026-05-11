@@ -79,18 +79,18 @@ FCallsignSupportResolution UCallsignSupportResolver::Resolve(const FCallsignSupp
 	// Limited to the request's RequestedBy (the player in Phase 3) so a
 	// SupplyPod targeting an enemy doesn't accidentally heal the enemy.
 	// Phase 4 will replace this with a richer pickup / consumable layer.
-	if (Def->HealAmount > 0 && Instigator)
+	if (Def->HealAmount > 0 && Instigator && Def->RadiusCm > 0.f)
 	{
 		const float HealR2 = Def->RadiusCm * Def->RadiusCm;
 		const FVector InstLoc = Instigator->GetActorLocation();
-		if (Def->RadiusCm <= 0.f || FVector::DistSquared(InstLoc, Center) <= HealR2)
+		if (FVector::DistSquared(InstLoc, Center) <= HealR2)
 		{
 			if (UCallsignHealthComponent* HC = Instigator->FindComponentByClass<UCallsignHealthComponent>())
 			{
 				const int32 Restored = HC->ApplyHeal(Def->HealAmount);
 				if (Restored > 0)
 				{
-					Out.HealEventsApplied = Restored;
+					++Out.HealEventsApplied;
 					CallsignMsg::PushSystem(World, FString::Printf(
 						TEXT("補給を受領。HP +%d。"), Restored));
 				}
