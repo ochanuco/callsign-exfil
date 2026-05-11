@@ -53,6 +53,10 @@ public:
         UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Callsign|Health")
         TObjectPtr<UCallsignHealthComponent> HealthComp;
 
+        /** Dynamic material instance on DebugMesh so we can tint per-team / on-hit. */
+        UPROPERTY(Transient)
+        TObjectPtr<class UMaterialInstanceDynamic> BodyMID;
+
         // ICallsignNodeOccupant
         virtual ACallsignNode* GetCurrentNode_Implementation() const override;
         virtual void MoveToNode_Implementation(ACallsignNode* TargetNode) override;
@@ -66,8 +70,18 @@ public:
 
 protected:
         virtual void BeginPlay() override;
+        virtual void Tick(float DeltaSeconds) override;
 
 private:
         UFUNCTION()
         void HandleDied(UCallsignHealthComponent* Comp);
+
+        UFUNCTION()
+        void HandleHealthChanged(UCallsignHealthComponent* Source, int32 Delta, AActor* Causer);
+
+        /** Seconds elapsed inside the death scale-down animation (-1 = not dying). */
+        float DeathAnimElapsed = -1.f;
+
+        /** Seconds of "got hit" red flash remaining. */
+        float HitFlashRemaining = 0.f;
 };

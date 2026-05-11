@@ -10,11 +10,16 @@
 #include "Node/CallsignNodeMovement.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Materials/MaterialInstanceDynamic.h"
 #include "UObject/ConstructorHelpers.h"
 
 ACallsignRifleEnemy::ACallsignRifleEnemy()
 {
-        PrimaryActorTick.bCanEverTick = false;
+        // Tick is reserved for the hit-flash decay and death scale-down anim.
+        // It's only enabled while one of those is active (see HandleHealthChanged
+        // and HandleDied); idle enemies don't tick.
+        PrimaryActorTick.bCanEverTick = true;
+        PrimaryActorTick.bStartWithTickEnabled = false;
 
         AIControllerClass = ACallsignRifleEnemyController::StaticClass();
         AutoPossessAI = EAutoPossessAI::PlacedInWorldOrSpawned;
@@ -52,6 +57,83 @@ void ACallsignRifleEnemy::BeginPlay()
         if (HealthComp)
         {
                 HealthComp->OnDied.AddDynamic(this, &ACallsignRifleEnemy::HandleDied);
+                HealthComp->OnHealthChanged.AddDynamic(this, &ACallsignRifleEnemy::HandleHealthChanged);
+        }
+
+        // Create a tinted MID so enemies read as "the red team" at a glance.
+        // Material may or may not expose a Color parameter; SetVectorParameterValue
+        // is a silent no-op when the param doesn't exist (still leaves the MID
+        // bound, so we always go through the MID path for future tints).
+        if (DebugMesh)
+        {
+                if (UMaterialInterface* SrcMat = DebugMesh->GetMaterial(0))
+                {
+                        BodyMID = UMaterialInstanceDynamic::Create(SrcMat, this);
+                        if (BodyMID)
+                        {
+                                const FLinearColor TeamRed(0.85f, 0.18f, 0.18f, 1.0f);
+                                BodyMID->SetVectorParameterValue(TEXT("Color"), TeamRed);
+                                BodyMID->SetVectorParameterValue(TEXT("BaseColor"), TeamRed);
+                                DebugMesh->SetMaterial(0, BodyMID);
+                        }
+                }
+        }
+}
+
+void ACallsignRifleEnemy::Tick(float DeltaSeconds)
+{
+        Super::Tick(DeltaSeconds);
+
+        // Hit flash decay: brightens the MID white for ~0.18s after each hit.
+        // Compute the lerp factor from the PRE-decay remaining so the first
+        // frame after a hit lands at full white (otherwise the flash never
+        // reaches the saturated end of the gradient).
+        if (HitFlashRemaining > 0.f && BodyMID)
+        {
+                const float Pre = HitFlashRemaining;
+                HitFlashRemaining = FMath::Max(0.f, Pre - DeltaSeconds);
+                const float Norm = FMath::Clamp(Pre / 0.18f, 0.f, 1.f);
+                const FLinearColor TeamRed(0.85f, 0.18f, 0.18f, 1.0f);
+                const FLinearColor FlashWhite(1.0f, 1.0f, 1.0f, 1.0f);
+                const FLinearColor Mix = FMath::Lerp(TeamRed, FlashWhite, Norm);
+                BodyMID->SetVectorParameterValue(TEXT("Color"), Mix);
+                BodyMID->SetVectorParameterValue(TEXT("BaseColor"), Mix);
+        }
+
+        // Death scale-down: shrink + tilt over 0.5s, then hide. Avoids the
+        // jarring instant disappearance.
+        if (DeathAnimElapsed >= 0.f)
+        {
+                const float Duration = 0.5f;
+                DeathAnimElapsed += DeltaSeconds;
+                const float t = FMath::Clamp(DeathAnimElapsed / Duration, 0.f, 1.f);
+                const float Eased = 1.f - FMath::Pow(1.f - t, 2.f);
+                SetActorScale3D(FVector(1.f - Eased));
+                AddActorLocalRotation(FRotator(0.f, 0.f, 240.f * DeltaSeconds));
+                if (t >= 1.f)
+                {
+                        // Capsule collision is already dropped up-front in
+                        // HandleDied; here we just hide the mesh.
+                        SetActorHiddenInGame(true);
+                        DeathAnimElapsed = -1.f;
+                }
+        }
+
+        // Park Tick once both animations are idle so we're not eating frames
+        // on enemies that aren't doing anything.
+        if (HitFlashRemaining <= 0.f && DeathAnimElapsed < 0.f)
+        {
+                SetActorTickEnabled(false);
+        }
+}
+
+void ACallsignRifleEnemy::HandleHealthChanged(UCallsignHealthComponent* /*Source*/, int32 Delta, AActor* /*Causer*/)
+{
+        // Damage-only flash. Heals are positive deltas; ignore.
+        if (Delta < 0)
+        {
+                HitFlashRemaining = 0.18f;
+                SetActorTickEnabled(true);
         }
 }
 
@@ -72,23 +154,29 @@ float ACallsignRifleEnemy::TakeDamage(float DamageAmount, FDamageEvent const& Da
 
 void ACallsignRifleEnemy::HandleDied(UCallsignHealthComponent* /*Comp*/)
 {
-        UE_LOG(LogTemp, Display, TEXT("[Health] Rifle enemy %s down — hiding"), *GetName());
+        UE_LOG(LogTemp, Display, TEXT("[Health] Rifle enemy %s down — starting death anim"), *GetName());
         CallsignMsg::PushSystem(GetWorld(), TEXT("敵が制圧された。"));
 
-        SetActorHiddenInGame(true);
-        if (UCapsuleComponent* Cap = GetCapsuleComponent())
-        {
-                Cap->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-        }
-        // Vacate node occupancy so future moves into this cell aren't rejected
-        // by IsOccupied() seeing a still-live WeakObjectPtr to a hidden corpse.
+        // Vacate node occupancy AND drop capsule collision immediately so
+        // movement queries / IsOccupied don't see a stale blocker while the
+        // 0.5s visual scale-down plays out.
         if (CurrentNode && CurrentNode->Occupant.Get() == this)
         {
                 CurrentNode->Occupant = nullptr;
         }
+        if (UCapsuleComponent* Cap = GetCapsuleComponent())
+        {
+                Cap->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+        }
         // Mark turn as finished so the AI controller doesn't stall the round
         // if death lands during this enemy's turn.
         bTurnFinished = true;
+
+        // Kick off the scale-down anim in Tick. The actor stays visible while
+        // shrinking; collision is dropped once the anim ends so other pawns
+        // can pass through the corpse cell.
+        DeathAnimElapsed = 0.f;
+        SetActorTickEnabled(true);
 }
 
 ACallsignNode* ACallsignRifleEnemy::GetCurrentNode_Implementation() const
