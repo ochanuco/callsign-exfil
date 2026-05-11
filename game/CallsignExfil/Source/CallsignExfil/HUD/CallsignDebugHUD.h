@@ -35,9 +35,13 @@ public:
         UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Callsign|HUD")
         bool bShowTurnInfo = true;
 
-        /** Toggle the player-to-camera-aim LoS preview line. */
+        /**
+         *  Toggle the player-to-camera-aim LoS preview line. Off by default
+         *  since it duplicates the auto-target beam (#73) and only adds
+         *  meaning when free-aim shooting lands.
+         */
         UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Callsign|HUD")
-        bool bShowLoSPreview = true;
+        bool bShowLoSPreview = false;
 
         /** Color used for the LoS preview line when LoS is clear. */
         UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Callsign|HUD")
