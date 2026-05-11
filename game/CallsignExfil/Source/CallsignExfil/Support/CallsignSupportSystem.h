@@ -29,6 +29,7 @@ class UCallsignSupportSystem : public UWorldSubsystem
 public:
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Deinitialize() override;
+	virtual void OnWorldBeginPlay(UWorld& InWorld) override;
 
 	/**
 	 *  ADR-004 §7 step 2-3: build a FCallsignSupportRequest, push to the

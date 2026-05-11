@@ -9,15 +9,28 @@
 void UCallsignSupportSystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
+	UE_LOG(LogTemp, Display, TEXT("[Support] Subsystem initialized (subscribe deferred to OnWorldBeginPlay)"));
+}
 
-	if (UWorld* World = GetWorld())
+void UCallsignSupportSystem::OnWorldBeginPlay(UWorld& InWorld)
+{
+	Super::OnWorldBeginPlay(InWorld);
+
+	// UWorldSubsystem::Initialize order is not deterministic, so subscribing
+	// to UCallsignTurnSystem there sometimes silently fails (TurnSys ptr
+	// resolvable but our delegate ends up bound to a not-yet-broadcasting
+	// instance, leaving pending support requests stuck at their initial
+	// TurnsRemaining). OnWorldBeginPlay runs after every subsystem has
+	// completed Initialize, so the subscription always sticks.
+	if (UCallsignTurnSystem* TurnSys = InWorld.GetSubsystem<UCallsignTurnSystem>())
 	{
-		if (UCallsignTurnSystem* TurnSys = World->GetSubsystem<UCallsignTurnSystem>())
-		{
-			TurnSys->OnTurnEnd.AddDynamic(this, &UCallsignSupportSystem::HandleTurnEnd);
-		}
+		TurnSys->OnTurnEnd.AddUniqueDynamic(this, &UCallsignSupportSystem::HandleTurnEnd);
+		UE_LOG(LogTemp, Display, TEXT("[Support] Subscribed to TurnSystem.OnTurnEnd"));
 	}
-	UE_LOG(LogTemp, Display, TEXT("[Support] Subsystem initialized"));
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Support] OnWorldBeginPlay: no TurnSystem to subscribe to"));
+	}
 }
 
 void UCallsignSupportSystem::Deinitialize()
