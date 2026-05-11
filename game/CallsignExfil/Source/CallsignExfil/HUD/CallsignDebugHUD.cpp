@@ -156,15 +156,35 @@ void ACallsignDebugHUD::DrawHUD()
                         Pending = SupportSys->GetPendingRequests();
                 }
 
+                // Resolve section visibility against actual data, not just the
+                // toggle flags. Avoids drawing an empty plate when the player
+                // pawn / health / weapon / pending data isn't available yet.
+                const bool bHasTurn = bShowTurnInfo;
+                UCallsignHealthComponent* PlayerHC = (bShowHealthOverlay && PlayerP)
+                        ? PlayerP->FindComponentByClass<UCallsignHealthComponent>()
+                        : nullptr;
+                UCallsignInventoryComponent* PlayerInv = (bShowWeaponStatus && PlayerP)
+                        ? PlayerP->FindComponentByClass<UCallsignInventoryComponent>()
+                        : nullptr;
+                UCallsignWeaponInstanceObject* PlayerWeapon = PlayerInv
+                        ? PlayerInv->GetCurrentWeapon()
+                        : nullptr;
+                UCallsignWeaponDefinition* PlayerWeaponDef = PlayerWeapon
+                        ? PlayerWeapon->GetWeaponDefinition()
+                        : nullptr;
+                const bool bHasHp     = PlayerHC != nullptr;
+                const bool bHasWeapon = PlayerWeapon != nullptr && PlayerWeaponDef != nullptr;
+                const bool bHasSupport = Pending.Num() > 0;
+
                 const float PanelX = 24.f;
                 const float PanelY = 24.f;
                 const float PanelW = 480.f;
                 const float Padding = 18.f;
                 const float SectionGap = 12.f;
-                const float HeaderH = bShowTurnInfo ? 50.f : 0.f;
-                const float HpH = bShowHealthOverlay ? 64.f : 0.f;
-                const float WeaponH = bShowWeaponStatus ? 30.f : 0.f;
-                const float SupportHeaderH = (Pending.Num() > 0) ? 32.f : 0.f;
+                const float HeaderH = bHasTurn ? 50.f : 0.f;
+                const float HpH = bHasHp ? 64.f : 0.f;
+                const float WeaponH = bHasWeapon ? 30.f : 0.f;
+                const float SupportHeaderH = bHasSupport ? 32.f : 0.f;
                 const float SupportRowH = 28.f;
                 const float SupportH = SupportHeaderH + SupportRowH * Pending.Num();
 
@@ -173,6 +193,10 @@ void ACallsignDebugHUD::DrawHUD()
                 if (HpH      > 0) { ++SectionsShown; }
                 if (WeaponH  > 0) { ++SectionsShown; }
                 if (SupportH > 0) { ++SectionsShown; }
+                // Skip the entire panel when there's nothing to render so we
+                // don't leave a hollow rect on screen.
+                if (SectionsShown > 0)
+                {
                 const float GapsTotal = SectionGap * FMath::Max(0, SectionsShown - 1);
                 const float ContentH = HeaderH + HpH + WeaponH + SupportH + GapsTotal;
                 const float PanelH = Padding * 2.f + ContentH;
@@ -221,65 +245,58 @@ void ACallsignDebugHUD::DrawHUD()
                         CursorY += HeaderH + SectionGap;
                 }
 
-                // HP block.
-                if (HpH > 0 && PlayerP)
+                // HP block — guard is now data-driven (bHasHp set above).
+                if (bHasHp)
                 {
-                        if (UCallsignHealthComponent* HC = PlayerP->FindComponentByClass<UCallsignHealthComponent>())
-                        {
-                                const float BarW = PanelW - Padding * 2.f;
-                                const float BarH = 22.f;
-                                const float Pct = HC->MaxHealth > 0
-                                        ? FMath::Clamp(static_cast<float>(HC->CurrentHealth) / HC->MaxHealth, 0.f, 1.f)
-                                        : 0.f;
-                                const FLinearColor BarColor = (Pct > 0.5f)
-                                        ? FLinearColor(0.25f, 0.85f, 0.35f, 0.95f)
-                                        : ((Pct > 0.25f)
-                                                ? FLinearColor(1.0f, 0.85f, 0.2f, 0.95f)
-                                                : FLinearColor(1.0f, 0.32f, 0.32f, 0.95f));
-                                DrawText(TEXT("HP"), FLinearColor(0.85f, 0.85f, 0.85f, 1.0f),
-                                        PanelX + Padding, CursorY, /*Font*/ nullptr, /*Scale*/ 1.5f, false);
-                                const float BarY = CursorY + 26.f;
-                                DrawRect(FLinearColor(0.02f, 0.02f, 0.02f, 0.7f),
-                                        PanelX + Padding, BarY, BarW, BarH);
-                                DrawRect(BarColor, PanelX + Padding, BarY, BarW * Pct, BarH);
-                                const FString HpText = FString::Printf(TEXT("%d / %d"),
-                                        HC->CurrentHealth, HC->MaxHealth);
-                                DrawText(HpText, FLinearColor::White,
-                                        PanelX + Padding + 8.f, BarY + 1.f,
-                                        /*Font*/ nullptr, /*Scale*/ 1.4f, false);
-                                CursorY += HpH + SectionGap;
-                        }
+                        const float BarW = PanelW - Padding * 2.f;
+                        const float BarH = 22.f;
+                        const float Pct = PlayerHC->MaxHealth > 0
+                                ? FMath::Clamp(static_cast<float>(PlayerHC->CurrentHealth) / PlayerHC->MaxHealth, 0.f, 1.f)
+                                : 0.f;
+                        // Three-band gradient: green > 50%, yellow >= 25%, red < 25%.
+                        // >= 0.25 keeps the boundary value out of the red band per spec.
+                        const FLinearColor BarColor = (Pct > 0.5f)
+                                ? FLinearColor(0.25f, 0.85f, 0.35f, 0.95f)
+                                : ((Pct >= 0.25f)
+                                        ? FLinearColor(1.0f, 0.85f, 0.2f, 0.95f)
+                                        : FLinearColor(1.0f, 0.32f, 0.32f, 0.95f));
+                        DrawText(TEXT("HP"), FLinearColor(0.85f, 0.85f, 0.85f, 1.0f),
+                                PanelX + Padding, CursorY, /*Font*/ nullptr, /*Scale*/ 1.5f, false);
+                        const float BarY = CursorY + 26.f;
+                        DrawRect(FLinearColor(0.02f, 0.02f, 0.02f, 0.7f),
+                                PanelX + Padding, BarY, BarW, BarH);
+                        DrawRect(BarColor, PanelX + Padding, BarY, BarW * Pct, BarH);
+                        const FString HpText = FString::Printf(TEXT("%d / %d"),
+                                PlayerHC->CurrentHealth, PlayerHC->MaxHealth);
+                        DrawText(HpText, FLinearColor::White,
+                                PanelX + Padding + 8.f, BarY + 1.f,
+                                /*Font*/ nullptr, /*Scale*/ 1.4f, false);
+                        CursorY += HpH + SectionGap;
                 }
 
-                // Weapon block.
-                if (WeaponH > 0 && PlayerP)
+                // Weapon block — guard is now data-driven (bHasWeapon set above).
+                if (bHasWeapon)
                 {
-                        UCallsignInventoryComponent* Inv = PlayerP->FindComponentByClass<UCallsignInventoryComponent>();
-                        UCallsignWeaponInstanceObject* WI = Inv ? Inv->GetCurrentWeapon() : nullptr;
-                        UCallsignWeaponDefinition* Def = WI ? WI->GetWeaponDefinition() : nullptr;
-                        if (WI && Def)
+                        const int32 MagCur = PlayerWeapon->GetMagazineCurrent();
+                        const int32 MagMax = PlayerWeaponDef->MagazineSize;
+                        const int32 DurCur = PlayerWeapon->GetDurabilityCurrent();
+                        const int32 DurMax = PlayerWeaponDef->DurabilityMax;
+                        const int32 PoolCur = PlayerInv->GetAmmoCount(PlayerWeaponDef->AmmoType);
+                        FString WeaponLine = FString::Printf(TEXT("MAG %d/%d   DUR %d/%d   POOL %d"),
+                                MagCur, MagMax, DurCur, DurMax, PoolCur);
+                        FLinearColor WeaponColor = FLinearColor(0.85f, 0.85f, 0.85f, 1.0f);
+                        if (PlayerWeapon->IsBroken())
                         {
-                                const int32 MagCur = WI->GetMagazineCurrent();
-                                const int32 MagMax = Def->MagazineSize;
-                                const int32 DurCur = WI->GetDurabilityCurrent();
-                                const int32 DurMax = Def->DurabilityMax;
-                                const int32 PoolCur = Inv->GetAmmoCount(Def->AmmoType);
-                                FString WeaponLine = FString::Printf(TEXT("MAG %d/%d   DUR %d/%d   POOL %d"),
-                                        MagCur, MagMax, DurCur, DurMax, PoolCur);
-                                FLinearColor WeaponColor = FLinearColor(0.85f, 0.85f, 0.85f, 1.0f);
-                                if (WI->IsBroken())
-                                {
-                                        WeaponLine += TEXT("   [BROKEN]");
-                                        WeaponColor = FLinearColor(1.0f, 0.4f, 0.4f, 1.0f);
-                                }
-                                else if (MagCur == 0)
-                                {
-                                        WeaponColor = FLinearColor(1.0f, 0.85f, 0.3f, 1.0f);
-                                }
-                                DrawText(WeaponLine, WeaponColor,
-                                        PanelX + Padding, CursorY, /*Font*/ nullptr, /*Scale*/ 1.55f, false);
-                                CursorY += WeaponH + SectionGap;
+                                WeaponLine += TEXT("   [BROKEN]");
+                                WeaponColor = FLinearColor(1.0f, 0.4f, 0.4f, 1.0f);
                         }
+                        else if (MagCur == 0)
+                        {
+                                WeaponColor = FLinearColor(1.0f, 0.85f, 0.3f, 1.0f);
+                        }
+                        DrawText(WeaponLine, WeaponColor,
+                                PanelX + Padding, CursorY, /*Font*/ nullptr, /*Scale*/ 1.55f, false);
+                        CursorY += WeaponH + SectionGap;
                 }
 
                 // Support pending block.
@@ -312,6 +329,7 @@ void ACallsignDebugHUD::DrawHUD()
                                 CursorY += SupportRowH;
                         }
                 }
+                } // close: if (SectionsShown > 0)
         }
 
         // ---- 2b. LoS preview block ----
