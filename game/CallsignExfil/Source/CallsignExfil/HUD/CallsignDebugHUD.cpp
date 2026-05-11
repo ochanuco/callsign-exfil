@@ -377,26 +377,32 @@ void ACallsignDebugHUD::DrawHUD()
                         if (Nearest)
                         {
                                 const FColor TargetColor(255, 220, 80); // amber
+                                FColor GlowColor = TargetColor;
+                                GlowColor.A = 90;
                                 const FVector ELoc = Nearest->GetActorLocation();
-                                // Per-frame redraw via tiny lifetime so it appears continuously.
+                                // Layered beam (outer glow + inner bright core) mirrors the
+                                // tracer style so the targeting line reads as a player aim
+                                // beam rather than a single debug stroke.
+                                DrawDebugLine(World, PLoc, ELoc, GlowColor,
+                                        /*bPersistent*/ false, /*Lifetime*/ 0.05f,
+                                        /*DepthPriority*/ SDPG_Foreground, /*Thickness*/ 9.f);
                                 DrawDebugLine(World, PLoc, ELoc, TargetColor,
                                         /*bPersistent*/ false, /*Lifetime*/ 0.05f,
                                         /*DepthPriority*/ SDPG_Foreground, /*Thickness*/ 2.5f);
-                                // Ring around the target's feet. Use capsule half-height when
-                                // the target is an ACharacter so taller / shorter pawns don't
-                                // float or sink the ring; fall back to the default 88 cm.
-                                float HalfHeight = 88.f;
-                                if (ACharacter* TargetChar = Cast<ACharacter>(Nearest))
-                                {
-                                        if (UCapsuleComponent* Cap = TargetChar->GetCapsuleComponent())
-                                        {
-                                                HalfHeight = Cap->GetScaledCapsuleHalfHeight();
-                                        }
-                                }
-                                const FVector RingCenter = ELoc + FVector(0.f, 0.f, -HalfHeight);
-                                DrawDebugCircle(World, RingCenter, /*Radius*/ 70.f, /*Segments*/ 24,
+                                // Ring at the target's actual ground using its bounding box
+                                // bottom, mirroring the tracer impact ring. Pawns of different
+                                // capsule sizes / scaled meshes all anchor cleanly.
+                                FVector BoundsOrigin;
+                                FVector BoundsExtent;
+                                Nearest->GetActorBounds(/*bOnlyCollidingComponents*/ true,
+                                        BoundsOrigin, BoundsExtent);
+                                const FVector RingCenter(
+                                        BoundsOrigin.X,
+                                        BoundsOrigin.Y,
+                                        BoundsOrigin.Z - BoundsExtent.Z + 2.f);
+                                DrawDebugCircle(World, RingCenter, /*Radius*/ 70.f, /*Segments*/ 32,
                                         TargetColor, /*bPersistent*/ false, /*Lifetime*/ 0.05f,
-                                        /*DepthPriority*/ SDPG_Foreground, /*Thickness*/ 2.5f,
+                                        /*DepthPriority*/ SDPG_Foreground, /*Thickness*/ 3.f,
                                         /*YAxis*/ FVector(0.f, 1.f, 0.f), /*XAxis*/ FVector(1.f, 0.f, 0.f),
                                         /*bDrawAxis*/ false);
                         }
