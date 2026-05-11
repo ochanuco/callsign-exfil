@@ -98,6 +98,12 @@ void ACallsignRifleEnemyController::PerformQueuedAction()
                 return;
         }
 
+        // Single source of truth for the chat-log enemy tag. Falls back to
+        // bare 敵 when GameMode never assigned a DisplayIndex.
+        const FString EnemyTag = (Enemy->DisplayIndex > 0)
+                ? FString::Printf(TEXT("敵#%d"), Enemy->DisplayIndex)
+                : FString(TEXT("敵"));
+
         // Phase 2 demo (ADR-003 §4.3): try to shoot the player first. When LoS is clear and
         // the enemy has a usable (non-broken) weapon, route a shot through the CombatResolver
         // (which handles ammo / magazine / durability / broken via Inventory). On a successful
@@ -145,19 +151,16 @@ void ACallsignRifleEnemyController::PerformQueuedAction()
                                         const FCallsignShotResult Res = Combat->ResolveShot(Req);
                                         UE_LOG(LogTemp, Display, TEXT("[EnemyAI] shot: hit=%d damage=%.2f"),
                                                 Res.bHit ? 1 : 0, Res.DamageApplied);
-                                        const FString TagStr = (Enemy->DisplayIndex > 0)
-                                                ? FString::Printf(TEXT("敵#%d"), Enemy->DisplayIndex)
-                                                : FString(TEXT("敵"));
                                         if (Res.bHit)
                                         {
                                                 CallsignMsg::PushEnemy(World, FString::Printf(
                                                         TEXT("%sがあなたを撃った。命中、%.0f ダメージ。"),
-                                                        *TagStr, Res.DamageApplied));
+                                                        *EnemyTag, Res.DamageApplied));
                                         }
                                         else
                                         {
                                                 CallsignMsg::PushEnemy(World, FString::Printf(
-                                                        TEXT("%sがあなたを撃った。外れた。"), *TagStr));
+                                                        TEXT("%sがあなたを撃った。外れた。"), *EnemyTag));
                                         }
                                         bDidShoot = true;
                                 }
@@ -169,11 +172,8 @@ void ACallsignRifleEnemyController::PerformQueuedAction()
                                         // surface the broken/empty-state failure to the player.
                                         if (LosRes.bHasLineOfSight && !bHasUsableWeapon)
                                         {
-                                                const FString TagStr = (Enemy->DisplayIndex > 0)
-                                                        ? FString::Printf(TEXT("敵#%d"), Enemy->DisplayIndex)
-                                                        : FString(TEXT("敵"));
                                                 CallsignMsg::PushEnemy(World, FString::Printf(
-                                                        TEXT("%sが射撃を試みたが失敗した。"), *TagStr));
+                                                        TEXT("%sが射撃を試みたが失敗した。"), *EnemyTag));
                                         }
                                 }
                         }
@@ -223,10 +223,7 @@ void ACallsignRifleEnemyController::PerformQueuedAction()
                 ICallsignNodeOccupant::Execute_MoveToNode(Enemy, Pick);
                 UE_LOG(LogTemp, Display, TEXT("[EnemyAI] %s -> moved to %s"),
                         *GetNameSafe(Enemy), *GetNameSafe(Pick));
-                const FString MoveTag = (Enemy->DisplayIndex > 0)
-                        ? FString::Printf(TEXT("敵#%d"), Enemy->DisplayIndex)
-                        : FString(TEXT("敵"));
-                CallsignMsg::PushEnemy(World, FString::Printf(TEXT("%sが移動した。"), *MoveTag));
+                CallsignMsg::PushEnemy(World, FString::Printf(TEXT("%sが移動した。"), *EnemyTag));
         }
         else
         {
