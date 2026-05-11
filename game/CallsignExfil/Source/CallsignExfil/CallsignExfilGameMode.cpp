@@ -15,6 +15,8 @@
 #include "Data/CallsignSupportTypes.h"
 #include "Data/CallsignWeaponDefinition.h"
 #include "Support/CallsignSupportSystem.h"
+#include "EngineUtils.h"
+#include "HUD/CallsignMessageBus.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/StaticMeshActor.h"
@@ -101,10 +103,122 @@ void ACallsignExfilGameMode::BeginPlay()
 			true);
 		UE_LOG(LogTemp, Display, TEXT("[GameMode] Auto-advance timer enabled at %.2fs"), TurnAdvanceInterval);
 	}
+
+	// Mission win/lose triggers: subscribe to every pawn's HealthComp.OnDied
+	// so HandlePawnDied can evaluate whether the round is over.
+	{
+		TArray<ACallsignRifleEnemy*> SpawnedEnemies;
+		for (TActorIterator<ACallsignRifleEnemy> It(World); It; ++It)
+		{
+			if (ACallsignRifleEnemy* E = *It)
+			{
+				SpawnedEnemies.Add(E);
+			}
+		}
+		HookMissionTriggers(PlayerPawn, SpawnedEnemies);
+	}
+}
+
+void ACallsignExfilGameMode::HookMissionTriggers(APawn* PlayerPawn, const TArray<ACallsignRifleEnemy*>& Enemies)
+{
+	TrackedPlayerPawn = PlayerPawn;
+	TrackedEnemies.Reset();
+
+	auto Subscribe = [this](AActor* Pawn)
+	{
+		if (!Pawn)
+		{
+			return;
+		}
+		if (UCallsignHealthComponent* HC = Pawn->FindComponentByClass<UCallsignHealthComponent>())
+		{
+			HC->OnDied.AddDynamic(this, &ACallsignExfilGameMode::HandlePawnDied);
+		}
+	};
+
+	Subscribe(PlayerPawn);
+	for (ACallsignRifleEnemy* E : Enemies)
+	{
+		Subscribe(E);
+		if (E)
+		{
+			TrackedEnemies.Add(E);
+		}
+	}
+
+	UE_LOG(LogTemp, Display, TEXT("[GameMode] Mission triggers hooked: player=%s enemies=%d"),
+		*GetNameSafe(PlayerPawn), TrackedEnemies.Num());
+}
+
+void ACallsignExfilGameMode::HandlePawnDied(UCallsignHealthComponent* HealthComp)
+{
+	if (MissionResult != ECallsignMissionResult::InProgress || !HealthComp)
+	{
+		return;
+	}
+
+	AActor* Owner = HealthComp->GetOwner();
+	APawn* Player = TrackedPlayerPawn.Get();
+
+	if (Owner && Owner == Player)
+	{
+		SetMissionResult(ECallsignMissionResult::Defeat);
+		return;
+	}
+
+	// Enemy died — recount living enemies; victory when zero remain.
+	int32 Living = 0;
+	for (const TWeakObjectPtr<ACallsignRifleEnemy>& EW : TrackedEnemies)
+	{
+		ACallsignRifleEnemy* E = EW.Get();
+		if (!E)
+		{
+			continue;
+		}
+		if (UCallsignHealthComponent* EHC = E->FindComponentByClass<UCallsignHealthComponent>())
+		{
+			if (!EHC->bIsDead)
+			{
+				++Living;
+			}
+		}
+	}
+	UE_LOG(LogTemp, Display, TEXT("[GameMode] Enemy down — %d living enemies remain"), Living);
+	if (Living == 0)
+	{
+		SetMissionResult(ECallsignMissionResult::Victory);
+	}
+}
+
+void ACallsignExfilGameMode::SetMissionResult(ECallsignMissionResult NewResult)
+{
+	if (MissionResult != ECallsignMissionResult::InProgress || NewResult == ECallsignMissionResult::InProgress)
+	{
+		return;
+	}
+	MissionResult = NewResult;
+
+	UWorld* World = GetWorld();
+	if (World)
+	{
+		World->GetTimerManager().ClearTimer(AutoAdvanceTimerHandle);
+	}
+
+	const TCHAR* Label = (NewResult == ECallsignMissionResult::Victory) ? TEXT("VICTORY") : TEXT("DEFEAT");
+	UE_LOG(LogTemp, Display, TEXT("[GameMode] Mission result: %s"), Label);
+	CallsignMsg::PushSystem(World, NewResult == ECallsignMissionResult::Victory
+		? TEXT("作戦完了。敵を全滅。")
+		: TEXT("作戦失敗。撤収できなかった。"));
+
+	OnMissionResultChanged.Broadcast(NewResult);
 }
 
 void ACallsignExfilGameMode::HandleAutoAdvance()
 {
+	if (MissionResult != ECallsignMissionResult::InProgress)
+	{
+		return;
+	}
 	UWorld* World = GetWorld();
 	if (!World)
 	{

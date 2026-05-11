@@ -2,6 +2,7 @@
 
 #include "CallsignDebugHUD.h"
 
+#include "CallsignExfilGameMode.h"
 #include "CallsignExfilPlayerController.h"
 #include "CallsignMessageBus.h"
 #include "Components/CapsuleComponent.h"
@@ -40,9 +41,55 @@ void ACallsignDebugHUD::DrawHUD()
         }
 
         if (!bShowTurnInfo && !bShowLoSPreview && !bShowMessageLog && !bShowKeyHelp
-                && !bShowTargetingPreview && !bShowSupportPreview && !bShowHealthOverlay)
+                && !bShowTargetingPreview && !bShowSupportPreview && !bShowHealthOverlay
+                && !bShowMissionBanner)
         {
                 return;
+        }
+
+        // ---- 0. Mission banner (drawn last conceptually but anchored top-center) ----
+        // Once the GameMode flips MissionResult, render a centered banner so the
+        // PIE session has a clear visual end state. Drawn early in this method
+        // so it sits behind subsequent overlays (which is fine — the banner
+        // text is large and stays readable underneath the corner panels).
+        if (bShowMissionBanner && Canvas)
+        {
+                if (const ACallsignExfilGameMode* GM = World->GetAuthGameMode<ACallsignExfilGameMode>())
+                {
+                        if (GM->MissionResult != ECallsignMissionResult::InProgress)
+                        {
+                                const bool bVictory = (GM->MissionResult == ECallsignMissionResult::Victory);
+                                const TCHAR* Title = bVictory ? TEXT("MISSION COMPLETE") : TEXT("MISSION FAILED");
+                                const FLinearColor TitleColor = bVictory
+                                        ? FLinearColor(0.4f, 1.0f, 0.5f, 1.0f)
+                                        : FLinearColor(1.0f, 0.35f, 0.35f, 1.0f);
+                                const FLinearColor BgColor(0.f, 0.f, 0.f, 0.7f);
+
+                                const float TitleScale = 4.5f;
+                                const float SubScale = 2.0f;
+                                const float ApproxCharW = 18.f * TitleScale * 0.55f;
+                                const int32 TitleLen = bVictory ? 16 : 14; // "MISSION COMPLETE" / "MISSION FAILED"
+                                const float TitleW = ApproxCharW * TitleLen;
+                                const float TitleH = 22.f * TitleScale;
+                                const float CenterX = Canvas->ClipX * 0.5f;
+                                const float TopY = Canvas->ClipY * 0.32f;
+
+                                const float PanelW = TitleW + 200.f;
+                                const float PanelH = TitleH + 110.f;
+                                const float PanelX = CenterX - (PanelW * 0.5f);
+                                const float PanelY = TopY - 40.f;
+                                DrawRect(BgColor, PanelX, PanelY, PanelW, PanelH);
+
+                                const float TitleX = CenterX - (TitleW * 0.5f);
+                                DrawText(Title, TitleColor, TitleX, TopY, /*Font*/ nullptr, TitleScale, false);
+                                const TCHAR* Sub = bVictory
+                                        ? TEXT("敵を全滅させた。")
+                                        : TEXT("作戦員が戦闘不能。");
+                                DrawText(Sub, FLinearColor::White,
+                                        CenterX - 180.f, TopY + TitleH + 16.f,
+                                        /*Font*/ nullptr, SubScale, false);
+                        }
+                }
         }
 
         // ---- 2a. Turn info block ----
