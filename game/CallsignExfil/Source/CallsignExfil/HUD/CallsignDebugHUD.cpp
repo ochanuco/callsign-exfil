@@ -31,7 +31,9 @@ void ACallsignDebugHUD::BeginPlay()
 
 void ACallsignDebugHUD::HandleHealthChanged(UCallsignHealthComponent* Source, int32 Delta, AActor* /*Causer*/)
 {
-        if (!Source || Delta == 0)
+        // Drop events while popups are disabled so FloatingNumbers can't grow
+        // unboundedly mid-session and dump a backlog when re-enabled.
+        if (!bShowDamagePopups || !Source || Delta == 0)
         {
                 return;
         }
