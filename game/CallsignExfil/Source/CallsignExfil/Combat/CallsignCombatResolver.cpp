@@ -139,19 +139,36 @@ FCallsignShotResult UCallsignCombatResolver::ResolveShot(const FCallsignShotRequ
                 {
                         TracerColor = Result.bHit ? FColor(255, 80, 80) : FColor(220, 140, 140);
                 }
+                // Tracer beam: two layered lines (outer glow + inner bright core)
+                // read as a beam rather than a debug stroke. SDPG_Foreground bypasses
+                // depth so the line is visible through the player capsule.
+                FColor GlowColor = TracerColor;
+                GlowColor.A = 110;
+                DrawDebugLine(World, Request.From, Request.To, GlowColor,
+                        /*bPersistent*/ false, /*Lifetime*/ 0.6f,
+                        /*DepthPriority*/ SDPG_Foreground, /*Thickness*/ 14.f);
                 DrawDebugLine(World, Request.From, Request.To, TracerColor,
                         /*bPersistent*/ false, /*Lifetime*/ 0.6f,
-                        /*DepthPriority*/ SDPG_Foreground, /*Thickness*/ 6.f);
-                // Origin marker on the shooter so the line clearly anchors at the source.
-                DrawDebugSphere(World, Request.From, /*Radius*/ 18.f, /*Segments*/ 10,
-                        TracerColor, /*bPersistent*/ false, /*Lifetime*/ 0.6f,
-                        /*DepthPriority*/ SDPG_Foreground, /*Thickness*/ 2.f);
+                        /*DepthPriority*/ SDPG_Foreground, /*Thickness*/ 3.f);
+
                 if (Result.bHit)
                 {
-                        // Impact marker at the destination.
-                        DrawDebugSphere(World, Request.To, /*Radius*/ 30.f, /*Segments*/ 12,
-                                TracerColor, /*bPersistent*/ false, /*Lifetime*/ 0.6f,
-                                /*DepthPriority*/ SDPG_Foreground, /*Thickness*/ 2.f);
+                        // Impact ring on the floor under the target. Reads as a
+                        // ground decal instead of a wireframe sphere floating mid-air.
+                        AActor* Victim = Request.TargetActor.Get();
+                        if (!Victim)
+                        {
+                                Victim = Result.LosResult.BlockingActor.Get();
+                        }
+                        if (Victim)
+                        {
+                                const FVector ImpactGround = Victim->GetActorLocation() + FVector(0.f, 0.f, -85.f);
+                                DrawDebugCircle(World, ImpactGround, /*Radius*/ 60.f, /*Segments*/ 32,
+                                        TracerColor, /*bPersistent*/ false, /*Lifetime*/ 0.6f,
+                                        /*DepthPriority*/ SDPG_Foreground, /*Thickness*/ 3.5f,
+                                        /*YAxis*/ FVector(0.f, 1.f, 0.f), /*XAxis*/ FVector(1.f, 0.f, 0.f),
+                                        /*bDrawAxis*/ false);
+                        }
                 }
         }
 
