@@ -652,19 +652,74 @@ bool ACallsignExfilPlayerController::TryRequestSupport(ECallsignSupportType Type
 	return true;
 }
 
+ACallsignNode* ACallsignExfilPlayerController::GetCurrentPlayerNode() const
+{
+	APawn* P = GetPawn();
+	if (!P)
+	{
+		return nullptr;
+	}
+	if (P->GetClass()->ImplementsInterface(UCallsignNodeOccupant::StaticClass()))
+	{
+		return ICallsignNodeOccupant::Execute_GetCurrentNode(P);
+	}
+	return nullptr;
+}
+
+ACallsignNode* ACallsignExfilPlayerController::GetNearestEnemyNode() const
+{
+	UWorld* World = GetWorld();
+	APawn* P = GetPawn();
+	if (!World || !P)
+	{
+		return nullptr;
+	}
+	AActor* Nearest = CallsignTargeting::FindNearestRifleEnemy(World, P->GetActorLocation());
+	if (!Nearest)
+	{
+		return nullptr;
+	}
+	if (Nearest->GetClass()->ImplementsInterface(UCallsignNodeOccupant::StaticClass()))
+	{
+		return ICallsignNodeOccupant::Execute_GetCurrentNode(Nearest);
+	}
+	return nullptr;
+}
+
 void ACallsignExfilPlayerController::CsxSupportPrecisionStrike()
 {
-	TryRequestSupport(ECallsignSupportType::PrecisionStrike, GetNodeUnderCursor());
+	// Cursor first, then fall back to the nearest enemy so a precise click
+	// isn't required just to call the strike.
+	ACallsignNode* Target = GetNodeUnderCursor();
+	if (!Target)
+	{
+		Target = GetNearestEnemyNode();
+	}
+	TryRequestSupport(ECallsignSupportType::PrecisionStrike, Target);
 }
 
 void ACallsignExfilPlayerController::CsxSupportSupplyPod()
 {
-	TryRequestSupport(ECallsignSupportType::SupplyPod, GetNodeUnderCursor());
+	// SupplyPod heals the requester (Phase 3 def). Default to the player's
+	// own cell so dropping cursor anywhere off the grid still heals.
+	ACallsignNode* Target = GetNodeUnderCursor();
+	if (!Target)
+	{
+		Target = GetCurrentPlayerNode();
+	}
+	TryRequestSupport(ECallsignSupportType::SupplyPod, Target);
 }
 
 void ACallsignExfilPlayerController::CsxSupportOrbitalBarrage()
 {
-	TryRequestSupport(ECallsignSupportType::OrbitalBarrage, GetNodeUnderCursor());
+	// Area damage; default to the nearest enemy so the AoE still lands on
+	// the most useful cell without cursor work.
+	ACallsignNode* Target = GetNodeUnderCursor();
+	if (!Target)
+	{
+		Target = GetNearestEnemyNode();
+	}
+	TryRequestSupport(ECallsignSupportType::OrbitalBarrage, Target);
 }
 
 void ACallsignExfilPlayerController::CsxRestart()

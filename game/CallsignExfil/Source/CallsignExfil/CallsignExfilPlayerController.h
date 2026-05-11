@@ -195,4 +195,10 @@ public:
 
 	/** Helper for HUD: returns the ACallsignNode currently under the mouse cursor (or nullptr). */
 	ACallsignNode* GetNodeUnderCursor() const;
+
+	/** Resolves the player pawn's current ACallsignNode via the NodeOccupant interface (or nullptr). */
+	ACallsignNode* GetCurrentPlayerNode() const;
+
+	/** Returns the node currently occupied by the nearest living rifle enemy (or nullptr). */
+	ACallsignNode* GetNearestEnemyNode() const;
 };
