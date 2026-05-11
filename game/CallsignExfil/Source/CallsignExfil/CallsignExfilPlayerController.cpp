@@ -729,6 +729,12 @@ bool ACallsignExfilPlayerController::TryMoveCardinal(const FVector& WorldDir)
 		{
 			continue;
 		}
+		// Filter on movability so a blocked nearest-direction neighbor doesn't
+		// preempt other valid candidates and turn the keypress into a no-op.
+		if (!CanMoveToNode(Adj))
+		{
+			continue;
+		}
 		const FVector ToAdj = (Adj->GetActorLocation() - Here).GetSafeNormal();
 		const float Dot = FVector::DotProduct(ToAdj, WorldDir);
 		if (Dot > BestDot)
