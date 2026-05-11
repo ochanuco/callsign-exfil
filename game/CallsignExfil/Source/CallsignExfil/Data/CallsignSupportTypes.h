@@ -74,6 +74,9 @@ struct FCallsignSupportResolution
 	UPROPERTY(BlueprintReadOnly, Category = "Callsign|Support")
 	int32 DamageEventsEmitted = 0;
 
+	UPROPERTY(BlueprintReadOnly, Category = "Callsign|Support")
+	int32 HealEventsApplied = 0;
+
 	/**
 	 *  TObjectPtr (not TWeakObjectPtr) so the array is BP-compatible and can
 	 *  ride through the OnSupportResolved dynamic delegate. Resolution is a
@@ -129,4 +132,15 @@ public:
 	/** ADR-004 §13 OQ-4: SupplyPod-style supports skip the damage pass. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Callsign|Support")
 	bool bDealsDamage = true;
+
+	/**
+	 *  Healing applied to the request's RequestedBy actor when it sits inside
+	 *  RadiusCm at resolve time. Zero (default) disables the heal pass.
+	 *  Lets SupplyPod recover the player without authoring a separate
+	 *  "supply effect" system (Phase 4 will replace with a richer pickup
+	 *  / consumable layer).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Callsign|Support",
+		meta = (ClampMin = "0", UIMin = "0"))
+	int32 HealAmount = 0;
 };

@@ -54,6 +54,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Callsign|Health")
 	int32 ApplyDamage(int32 Amount, AActor* Causer);
 
+	/**
+	 *  Heal CurrentHealth by Amount (clamped to MaxHealth). Returns the
+	 *  actual HP restored (0 when already dead or already full).
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Callsign|Health")
+	int32 ApplyHeal(int32 Amount);
+
 	UFUNCTION(BlueprintPure, Category = "Callsign|Health")
 	bool IsAlive() const { return !bIsDead; }
 
