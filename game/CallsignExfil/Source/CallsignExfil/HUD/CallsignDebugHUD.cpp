@@ -407,18 +407,38 @@ void ACallsignDebugHUD::DrawHUD()
                                         /*bDrawAxis*/ false);
                         }
 
-                        // Hovered-adjacent-node highlight: when the cursor is over an
-                        // adjacent unoccupied node, ring it green to indicate clickability.
+                        // Hovered-node highlight: when the cursor is over an
+                        // adjacent unoccupied node, ring it green to indicate
+                        // clickability (red when not clickable). Drawn on the
+                        // floor plane (matches the support / impact ring style)
+                        // with a layered outer glow.
                         if (ACallsignExfilPlayerController* CallsignPC = Cast<ACallsignExfilPlayerController>(PCT))
                         {
                                 if (ACallsignNode* Hovered = CallsignPC->GetNodeUnderCursor())
                                 {
+                                        // Hover ring tuning. Centralized so the two draws
+                                        // can't drift apart on future polish.
+                                        constexpr float HoverRingZOffset = -88.f;
+                                        constexpr float HoverRingRadius = 110.f;
+                                        constexpr int32 HoverRingSegments = 48;
+                                        constexpr float HoverRingGlowThickness = 10.f;
+                                        constexpr float HoverRingCoreThickness = 3.5f;
                                         const bool bClickable = CallsignPC->CanMoveToNode(Hovered);
                                         const FColor HoverColor = bClickable ? FColor(80, 240, 120) : FColor(220, 80, 80);
-                                        const FVector NodeLoc = Hovered->GetActorLocation();
-                                        DrawDebugCircle(World, NodeLoc, /*Radius*/ 110.f, /*Segments*/ 32,
+                                        FColor GlowHover = HoverColor;
+                                        GlowHover.A = 90;
+                                        // Anchor on the floor (~2 cm above floor top) instead
+                                        // of the node actor center so the ring reads as a
+                                        // ground decal.
+                                        const FVector RingCenter = Hovered->GetActorLocation() + FVector(0.f, 0.f, HoverRingZOffset);
+                                        DrawDebugCircle(World, RingCenter, HoverRingRadius, HoverRingSegments,
+                                                GlowHover, /*bPersistent*/ false, /*Lifetime*/ 0.05f,
+                                                /*DepthPriority*/ SDPG_Foreground, HoverRingGlowThickness,
+                                                /*YAxis*/ FVector(0.f, 1.f, 0.f), /*XAxis*/ FVector(1.f, 0.f, 0.f),
+                                                /*bDrawAxis*/ false);
+                                        DrawDebugCircle(World, RingCenter, HoverRingRadius, HoverRingSegments,
                                                 HoverColor, /*bPersistent*/ false, /*Lifetime*/ 0.05f,
-                                                /*DepthPriority*/ SDPG_Foreground, /*Thickness*/ 4.f,
+                                                /*DepthPriority*/ SDPG_Foreground, HoverRingCoreThickness,
                                                 /*YAxis*/ FVector(0.f, 1.f, 0.f), /*XAxis*/ FVector(1.f, 0.f, 0.f),
                                                 /*bDrawAxis*/ false);
                                 }
