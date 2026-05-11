@@ -422,8 +422,9 @@ void ACallsignDebugHUD::DrawHUD()
 
         // ---- 2b''. Support preview (world-space blast radius only) ----
         // Pending list text moved into the consolidated player status panel
-        // above. This block keeps the DebugSphere drawn at the target
-        // location so the player can read the radius in 3D.
+        // above. This block keeps a ground-plane ring at the target location
+        // so the player reads the radius as a footprint on the floor instead
+        // of a wireframe sphere floating in the air.
         if (bShowSupportPreview)
         {
                 if (UCallsignSupportSystem* SupportSys = World->GetSubsystem<UCallsignSupportSystem>())
@@ -435,19 +436,30 @@ void ACallsignDebugHUD::DrawHUD()
                                 {
                                         continue;
                                 }
-                                const FColor SphereColor = (R.TurnsRemaining <= 0)
+                                // Sit the ring just above the voxel floor surface
+                                // (FloorTopZ in GameMode is target.Z - 90 by default;
+                                // -88 keeps the ring visible without z-fighting).
+                                const FVector RingCenter = R.TargetLocation + FVector(0.f, 0.f, -88.f);
+                                const FColor RingColor = (R.TurnsRemaining <= 0)
                                         ? FColor(255, 80, 80)
                                         : FColor(255, 220, 80);
-                                DrawDebugSphere(World, R.TargetLocation, R.Definition->RadiusCm, /*Segments*/ 16,
-                                        SphereColor, /*bPersistent*/ false, /*Lifetime*/ 0.05f,
-                                        /*DepthPriority*/ SDPG_Foreground, /*Thickness*/ 2.0f);
+                                DrawDebugCircle(World, RingCenter, R.Definition->RadiusCm, /*Segments*/ 48,
+                                        RingColor, /*bPersistent*/ false, /*Lifetime*/ 0.05f,
+                                        /*DepthPriority*/ SDPG_Foreground, /*Thickness*/ 4.f,
+                                        /*YAxis*/ FVector(0.f, 1.f, 0.f), /*XAxis*/ FVector(1.f, 0.f, 0.f),
+                                        /*bDrawAxis*/ false);
                                 if (R.Definition->TerrainDestructionRadiusCm > 0.f)
                                 {
+                                        // Slight Z bump so the terrain ring sits above the
+                                        // blast-radius ring when both are drawn at the same cell.
+                                        const FVector TerrainCenter = RingCenter + FVector(0.f, 0.f, 1.f);
                                         const FColor TerrainColor(255, 140, 60);
-                                        DrawDebugSphere(World, R.TargetLocation,
-                                                R.Definition->TerrainDestructionRadiusCm, /*Segments*/ 16,
-                                                TerrainColor, /*bPersistent*/ false, /*Lifetime*/ 0.05f,
-                                                /*DepthPriority*/ SDPG_Foreground, /*Thickness*/ 1.5f);
+                                        DrawDebugCircle(World, TerrainCenter, R.Definition->TerrainDestructionRadiusCm,
+                                                /*Segments*/ 48, TerrainColor,
+                                                /*bPersistent*/ false, /*Lifetime*/ 0.05f,
+                                                /*DepthPriority*/ SDPG_Foreground, /*Thickness*/ 3.f,
+                                                /*YAxis*/ FVector(0.f, 1.f, 0.f), /*XAxis*/ FVector(1.f, 0.f, 0.f),
+                                                /*bDrawAxis*/ false);
                                 }
                         }
                 }
