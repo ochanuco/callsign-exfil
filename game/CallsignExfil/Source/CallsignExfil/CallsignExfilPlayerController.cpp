@@ -652,19 +652,106 @@ bool ACallsignExfilPlayerController::TryRequestSupport(ECallsignSupportType Type
 	return true;
 }
 
+ACallsignNode* ACallsignExfilPlayerController::GetCurrentPlayerNode() const
+{
+	APawn* P = GetPawn();
+	if (!P)
+	{
+		return nullptr;
+	}
+	if (P->GetClass()->ImplementsInterface(UCallsignNodeOccupant::StaticClass()))
+	{
+		return ICallsignNodeOccupant::Execute_GetCurrentNode(P);
+	}
+	return nullptr;
+}
+
+ACallsignNode* ACallsignExfilPlayerController::GetNearestEnemyNode() const
+{
+	UWorld* World = GetWorld();
+	APawn* P = GetPawn();
+	if (!World || !P)
+	{
+		return nullptr;
+	}
+	AActor* Nearest = CallsignTargeting::FindNearestRifleEnemy(World, P->GetActorLocation());
+	if (!Nearest)
+	{
+		return nullptr;
+	}
+	if (Nearest->GetClass()->ImplementsInterface(UCallsignNodeOccupant::StaticClass()))
+	{
+		return ICallsignNodeOccupant::Execute_GetCurrentNode(Nearest);
+	}
+	return nullptr;
+}
+
 void ACallsignExfilPlayerController::CsxSupportPrecisionStrike()
 {
-	TryRequestSupport(ECallsignSupportType::PrecisionStrike, GetNodeUnderCursor());
+	// IsMyTurn first so turn-rejection messaging takes priority over the
+	// no-target fallback message (CR ordering).
+	if (!IsMyTurn())
+	{
+		CallsignMsg::PushPlayer(GetWorld(), TEXT("自分のターンではない。"));
+		return;
+	}
+	// Cursor first, then fall back to the nearest enemy so a precise click
+	// isn't required just to call the strike.
+	ACallsignNode* Target = GetNodeUnderCursor();
+	if (!Target)
+	{
+		Target = GetNearestEnemyNode();
+	}
+	if (!Target)
+	{
+		CallsignMsg::PushPlayer(GetWorld(), TEXT("有効な敵が見つからない。"));
+		return;
+	}
+	TryRequestSupport(ECallsignSupportType::PrecisionStrike, Target);
 }
 
 void ACallsignExfilPlayerController::CsxSupportSupplyPod()
 {
-	TryRequestSupport(ECallsignSupportType::SupplyPod, GetNodeUnderCursor());
+	if (!IsMyTurn())
+	{
+		CallsignMsg::PushPlayer(GetWorld(), TEXT("自分のターンではない。"));
+		return;
+	}
+	// SupplyPod heals the requester (Phase 3 def). Default to the player's
+	// own cell so dropping cursor anywhere off the grid still heals.
+	ACallsignNode* Target = GetNodeUnderCursor();
+	if (!Target)
+	{
+		Target = GetCurrentPlayerNode();
+	}
+	if (!Target)
+	{
+		CallsignMsg::PushPlayer(GetWorld(), TEXT("自分の位置を特定できない。"));
+		return;
+	}
+	TryRequestSupport(ECallsignSupportType::SupplyPod, Target);
 }
 
 void ACallsignExfilPlayerController::CsxSupportOrbitalBarrage()
 {
-	TryRequestSupport(ECallsignSupportType::OrbitalBarrage, GetNodeUnderCursor());
+	if (!IsMyTurn())
+	{
+		CallsignMsg::PushPlayer(GetWorld(), TEXT("自分のターンではない。"));
+		return;
+	}
+	// Area damage; default to the nearest enemy so the AoE still lands on
+	// the most useful cell without cursor work.
+	ACallsignNode* Target = GetNodeUnderCursor();
+	if (!Target)
+	{
+		Target = GetNearestEnemyNode();
+	}
+	if (!Target)
+	{
+		CallsignMsg::PushPlayer(GetWorld(), TEXT("有効な敵が見つからない。"));
+		return;
+	}
+	TryRequestSupport(ECallsignSupportType::OrbitalBarrage, Target);
 }
 
 void ACallsignExfilPlayerController::CsxRestart()
