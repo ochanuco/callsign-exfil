@@ -77,7 +77,35 @@ public:
         UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Callsign|HUD")
         bool bShowMissionBanner = true;
 
+        /**
+         *  Toggle floating damage / heal popups above hit pawns. Listens to
+         *  each pawn's UCallsignHealthComponent::OnHealthChanged, spawns a
+         *  short-lived screen-space "-X" / "+X" that drifts up and fades.
+         */
+        UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Callsign|HUD")
+        bool bShowDamagePopups = true;
+
+        /** How long a popup remains visible (seconds). */
+        UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Callsign|HUD",
+                meta = (ClampMin = "0.1", UIMin = "0.1"))
+        float DamagePopupLifetime = 1.5f;
+
 protected:
 
         virtual void BeginPlay() override;
+
+private:
+
+        /** One floating number entry currently animating. */
+        struct FFloatingNumber
+        {
+                FVector WorldLoc;
+                int32 SignedAmount;
+                float SpawnedAt;
+        };
+
+        TArray<FFloatingNumber> FloatingNumbers;
+
+        UFUNCTION()
+        void HandleHealthChanged(class UCallsignHealthComponent* Source, int32 Delta, AActor* Causer);
 };

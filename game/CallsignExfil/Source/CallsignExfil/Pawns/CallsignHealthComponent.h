@@ -12,6 +12,14 @@ class UCallsignHealthComponent;
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FCallsignOnPawnDied, UCallsignHealthComponent*, HealthComp);
 
 /**
+ *  Fires every time CurrentHealth actually moves. Delta is negative for
+ *  damage, positive for heals. Causer may be null for self-heal. Source
+ *  is the component itself so listeners can resolve the owning actor.
+ */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FCallsignOnHealthChanged,
+	UCallsignHealthComponent*, Source, int32, Delta, AActor*, Causer);
+
+/**
  *  Minimal HP / death tracking for Phase 1+ pawns.
  *
  *  Owners (player + rifle enemy) override AActor::TakeDamage to forward the
@@ -46,6 +54,14 @@ public:
 	/** Broadcast exactly once when CurrentHealth reaches zero. */
 	UPROPERTY(BlueprintAssignable, Category = "Callsign|Health")
 	FCallsignOnPawnDied OnDied;
+
+	/**
+	 *  Broadcast on every effective HP change (damage and heal) so HUD /
+	 *  VFX can spawn floating numbers without polling. Skipped when no
+	 *  HP actually moved (ApplyDamage on dead, ApplyHeal on full).
+	 */
+	UPROPERTY(BlueprintAssignable, Category = "Callsign|Health")
+	FCallsignOnHealthChanged OnHealthChanged;
 
 	/**
 	 *  Reduce CurrentHealth by Amount (clamped to >=0). Returns the actual
