@@ -688,10 +688,43 @@ void ACallsignExfilPlayerController::CsxRestart()
 	UGameplayStatics::OpenLevel(this, FName(*CurrentLevel));
 }
 
-void ACallsignExfilPlayerController::CsxMoveNorth() { TryMoveCardinal(FVector(+1.f,  0.f, 0.f)); }
-void ACallsignExfilPlayerController::CsxMoveSouth() { TryMoveCardinal(FVector(-1.f,  0.f, 0.f)); }
-void ACallsignExfilPlayerController::CsxMoveEast()  { TryMoveCardinal(FVector( 0.f, +1.f, 0.f)); }
-void ACallsignExfilPlayerController::CsxMoveWest()  { TryMoveCardinal(FVector( 0.f, -1.f, 0.f)); }
+static void GetCameraGroundBasis(const APlayerController* PC, FVector& OutForward, FVector& OutRight)
+{
+	FVector CamLoc;
+	FRotator CamRot;
+	PC->GetPlayerViewPoint(CamLoc, CamRot);
+	FVector Fwd = CamRot.Vector();
+	Fwd.Z = 0.f;
+	// Camera looking straight down would zero out the ground projection;
+	// fall back to world +X so the player still gets a sensible step.
+	if (!Fwd.Normalize(0.001f))
+	{
+		Fwd = FVector::ForwardVector;
+	}
+	OutForward = Fwd;
+	OutRight = FVector::CrossProduct(FVector::UpVector, Fwd).GetSafeNormal();
+}
+
+void ACallsignExfilPlayerController::CsxMoveNorth()
+{
+	FVector Fwd, Right; GetCameraGroundBasis(this, Fwd, Right);
+	TryMoveCardinal(Fwd);
+}
+void ACallsignExfilPlayerController::CsxMoveSouth()
+{
+	FVector Fwd, Right; GetCameraGroundBasis(this, Fwd, Right);
+	TryMoveCardinal(-Fwd);
+}
+void ACallsignExfilPlayerController::CsxMoveEast()
+{
+	FVector Fwd, Right; GetCameraGroundBasis(this, Fwd, Right);
+	TryMoveCardinal(Right);
+}
+void ACallsignExfilPlayerController::CsxMoveWest()
+{
+	FVector Fwd, Right; GetCameraGroundBasis(this, Fwd, Right);
+	TryMoveCardinal(-Right);
+}
 
 bool ACallsignExfilPlayerController::TryMoveCardinal(const FVector& WorldDir)
 {
