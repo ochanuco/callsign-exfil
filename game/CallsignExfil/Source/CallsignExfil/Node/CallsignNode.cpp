@@ -3,6 +3,7 @@
 #include "CallsignNode.h"
 #include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Materials/MaterialInstanceDynamic.h"
 #include "UObject/ConstructorHelpers.h"
 
 ACallsignNode::ACallsignNode()
@@ -35,6 +36,17 @@ ACallsignNode::ACallsignNode()
         }
         Visual->SetRelativeLocation(FVector(0.f, 0.f, -50.f));
         Visual->SetRelativeScale3D(FVector(1.0f, 1.0f, 1.0f));
+
+        // Tile MID: lifts the playable cells out of the default-gray cube
+        // look so they read as deck plates against the surrounding floor
+        // grid. Both Color and BaseColor are set since the engine's basic
+        // shape material may expose either.
+        if (UMaterialInstanceDynamic* TileMID = Visual->CreateDynamicMaterialInstance(0))
+        {
+                const FLinearColor TileTeal(0.22f, 0.50f, 0.62f, 1.0f);
+                TileMID->SetVectorParameterValue(TEXT("Color"), TileTeal);
+                TileMID->SetVectorParameterValue(TEXT("BaseColor"), TileTeal);
+        }
 }
 
 bool ACallsignNode::IsOccupied() const
