@@ -474,8 +474,27 @@ void ACallsignExfilGameMode::SpawnEnvironmentDressing(const FVector& Origin)
 		UE_LOG(LogTemp, Warning, TEXT("[GameMode] EnvironmentDressing: /Engine/BasicShapes/Cube not found, skipping"));
 		return;
 	}
-	UMaterialInterface* GridMat = LoadObject<UMaterialInterface>(
+	UMaterialInterface* GridSourceMat = LoadObject<UMaterialInterface>(
 		nullptr, TEXT("/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial"));
+
+	// Floor MID darkens the engine WorldGrid swatch so the floor doesn't
+	// scream "prototype debug grid". Keeps the grid lines (still useful
+	// for counting voxels) but pulls the cell color down to a cool slate.
+	UMaterialInterface* GridMat = GridSourceMat;
+	if (GridSourceMat)
+	{
+		if (UMaterialInstanceDynamic* FloorMID = UMaterialInstanceDynamic::Create(GridSourceMat, this))
+		{
+			const FLinearColor FloorSlate(0.12f, 0.14f, 0.18f, 1.0f);
+			FloorMID->SetVectorParameterValue(TEXT("Color"), FloorSlate);
+			FloorMID->SetVectorParameterValue(TEXT("BaseColor"), FloorSlate);
+			// WorldGridMaterial in 5.x typically uses GridColor02 for line tint.
+			const FLinearColor GridLines(0.32f, 0.38f, 0.48f, 1.0f);
+			FloorMID->SetVectorParameterValue(TEXT("GridColor02"), GridLines);
+			FloorMID->SetVectorParameterValue(TEXT("LineColor"), GridLines);
+			GridMat = FloorMID;
+		}
+	}
 
 	// Cover voxels share one MID so all crates / sandbag / pillar columns
 	// read as the same warm-earth color rather than the engine's stock
