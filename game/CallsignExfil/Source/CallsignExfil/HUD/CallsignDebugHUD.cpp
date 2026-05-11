@@ -139,37 +139,178 @@ void ACallsignDebugHUD::DrawHUD()
                 }
         }
 
-        // ---- 2a. Turn info block ----
-        if (bShowTurnInfo)
+        // ---- 1. Player status panel (left-anchor, consolidated) ----
+        // One dark-bg panel that groups: current turn header, HP bar,
+        // weapon mag/dur/pool line, and pending support list. Replaces
+        // the previous loose stack of debug DrawText calls.
+        if (Canvas && (bShowTurnInfo || bShowHealthOverlay || bShowWeaponStatus || bShowSupportPreview))
         {
                 UCallsignTurnSystem* TurnSys = World->GetSubsystem<UCallsignTurnSystem>();
-                if (TurnSys)
-                {
-                        const ECallsignTurnPhase Phase = TurnSys->GetCurrentPhase();
-                        FString PhaseStr;
-                        switch (static_cast<int32>(Phase))
-                        {
-                        case static_cast<int32>(ECallsignTurnPhase::Player):
-                                PhaseStr = TEXT("Player");
-                                break;
-                        case static_cast<int32>(ECallsignTurnPhase::Enemies):
-                                PhaseStr = TEXT("Enemies");
-                                break;
-                        case static_cast<int32>(ECallsignTurnPhase::Resolving):
-                                PhaseStr = TEXT("Resolving");
-                                break;
-                        default:
-                                PhaseStr = TEXT("Unknown");
-                                break;
-                        }
+                UCallsignSupportSystem* SupportSys = World->GetSubsystem<UCallsignSupportSystem>();
+                APlayerController* PCH = GetOwningPlayerController();
+                APawn* PlayerP = PCH ? PCH->GetPawn() : nullptr;
 
-                        const FString CurrentName = GetNameSafe(TurnSys->GetCurrentParticipant());
-                        const FString InfoString = FString::Printf(TEXT("Phase=%s Current=%s"), *PhaseStr, *CurrentName);
-                        DrawText(InfoString, FLinearColor::White, 30.f, 30.f, /*Font*/ nullptr, /*Scale*/ 2.4f, false);
-                }
-                else
+                TArray<FCallsignSupportRequest> Pending;
+                if (bShowSupportPreview && SupportSys)
                 {
-                        DrawText(TEXT("[Turn] subsystem not available"), FLinearColor::White, 30.f, 30.f, /*Font*/ nullptr, /*Scale*/ 2.4f, false);
+                        Pending = SupportSys->GetPendingRequests();
+                }
+
+                const float PanelX = 24.f;
+                const float PanelY = 24.f;
+                const float PanelW = 480.f;
+                const float Padding = 18.f;
+                const float SectionGap = 12.f;
+                const float HeaderH = bShowTurnInfo ? 50.f : 0.f;
+                const float HpH = bShowHealthOverlay ? 64.f : 0.f;
+                const float WeaponH = bShowWeaponStatus ? 30.f : 0.f;
+                const float SupportHeaderH = (Pending.Num() > 0) ? 32.f : 0.f;
+                const float SupportRowH = 28.f;
+                const float SupportH = SupportHeaderH + SupportRowH * Pending.Num();
+
+                int32 SectionsShown = 0;
+                if (HeaderH  > 0) { ++SectionsShown; }
+                if (HpH      > 0) { ++SectionsShown; }
+                if (WeaponH  > 0) { ++SectionsShown; }
+                if (SupportH > 0) { ++SectionsShown; }
+                const float GapsTotal = SectionGap * FMath::Max(0, SectionsShown - 1);
+                const float ContentH = HeaderH + HpH + WeaponH + SupportH + GapsTotal;
+                const float PanelH = Padding * 2.f + ContentH;
+
+                // Background plate with a soft accent border. Keeping it cool blue-grey
+                // so it reads "instrument panel" rather than "debug overlay".
+                DrawRect(FLinearColor(0.04f, 0.07f, 0.11f, 0.82f), PanelX, PanelY, PanelW, PanelH);
+                const FLinearColor BorderColor(0.42f, 0.58f, 0.72f, 0.85f);
+                DrawLine(PanelX,           PanelY,           PanelX + PanelW, PanelY,           BorderColor, 1.6f);
+                DrawLine(PanelX,           PanelY + PanelH,  PanelX + PanelW, PanelY + PanelH,  BorderColor, 1.6f);
+                DrawLine(PanelX,           PanelY,           PanelX,          PanelY + PanelH,  BorderColor, 1.6f);
+                DrawLine(PanelX + PanelW,  PanelY,           PanelX + PanelW, PanelY + PanelH,  BorderColor, 1.6f);
+
+                float CursorY = PanelY + Padding;
+
+                // Turn header.
+                if (HeaderH > 0)
+                {
+                        AActor* Current = TurnSys ? TurnSys->GetCurrentParticipant() : nullptr;
+                        const ACallsignExfilGameMode* GMH = World->GetAuthGameMode<ACallsignExfilGameMode>();
+                        const bool bMissionOver = GMH && GMH->MissionResult != ECallsignMissionResult::InProgress;
+                        FString HeaderText;
+                        FLinearColor HeaderColor;
+                        if (bMissionOver)
+                        {
+                                HeaderText  = TEXT("作戦終了");
+                                HeaderColor = FLinearColor(0.8f, 0.8f, 0.8f, 1.0f);
+                        }
+                        else if (Current && Current == PlayerP)
+                        {
+                                HeaderText  = TEXT("あなたのターン");
+                                HeaderColor = FLinearColor(0.5f, 0.85f, 1.0f, 1.0f);
+                        }
+                        else if (Current)
+                        {
+                                HeaderText  = TEXT("敵のターン");
+                                HeaderColor = FLinearColor(1.0f, 0.55f, 0.55f, 1.0f);
+                        }
+                        else
+                        {
+                                HeaderText  = TEXT("待機");
+                                HeaderColor = FLinearColor(0.7f, 0.7f, 0.7f, 1.0f);
+                        }
+                        DrawText(HeaderText, HeaderColor, PanelX + Padding, CursorY,
+                                /*Font*/ nullptr, /*Scale*/ 2.4f, false);
+                        CursorY += HeaderH + SectionGap;
+                }
+
+                // HP block.
+                if (HpH > 0 && PlayerP)
+                {
+                        if (UCallsignHealthComponent* HC = PlayerP->FindComponentByClass<UCallsignHealthComponent>())
+                        {
+                                const float BarW = PanelW - Padding * 2.f;
+                                const float BarH = 22.f;
+                                const float Pct = HC->MaxHealth > 0
+                                        ? FMath::Clamp(static_cast<float>(HC->CurrentHealth) / HC->MaxHealth, 0.f, 1.f)
+                                        : 0.f;
+                                const FLinearColor BarColor = (Pct > 0.5f)
+                                        ? FLinearColor(0.25f, 0.85f, 0.35f, 0.95f)
+                                        : ((Pct > 0.25f)
+                                                ? FLinearColor(1.0f, 0.85f, 0.2f, 0.95f)
+                                                : FLinearColor(1.0f, 0.32f, 0.32f, 0.95f));
+                                DrawText(TEXT("HP"), FLinearColor(0.85f, 0.85f, 0.85f, 1.0f),
+                                        PanelX + Padding, CursorY, /*Font*/ nullptr, /*Scale*/ 1.5f, false);
+                                const float BarY = CursorY + 26.f;
+                                DrawRect(FLinearColor(0.02f, 0.02f, 0.02f, 0.7f),
+                                        PanelX + Padding, BarY, BarW, BarH);
+                                DrawRect(BarColor, PanelX + Padding, BarY, BarW * Pct, BarH);
+                                const FString HpText = FString::Printf(TEXT("%d / %d"),
+                                        HC->CurrentHealth, HC->MaxHealth);
+                                DrawText(HpText, FLinearColor::White,
+                                        PanelX + Padding + 8.f, BarY + 1.f,
+                                        /*Font*/ nullptr, /*Scale*/ 1.4f, false);
+                                CursorY += HpH + SectionGap;
+                        }
+                }
+
+                // Weapon block.
+                if (WeaponH > 0 && PlayerP)
+                {
+                        UCallsignInventoryComponent* Inv = PlayerP->FindComponentByClass<UCallsignInventoryComponent>();
+                        UCallsignWeaponInstanceObject* WI = Inv ? Inv->GetCurrentWeapon() : nullptr;
+                        UCallsignWeaponDefinition* Def = WI ? WI->GetWeaponDefinition() : nullptr;
+                        if (WI && Def)
+                        {
+                                const int32 MagCur = WI->GetMagazineCurrent();
+                                const int32 MagMax = Def->MagazineSize;
+                                const int32 DurCur = WI->GetDurabilityCurrent();
+                                const int32 DurMax = Def->DurabilityMax;
+                                const int32 PoolCur = Inv->GetAmmoCount(Def->AmmoType);
+                                FString WeaponLine = FString::Printf(TEXT("MAG %d/%d   DUR %d/%d   POOL %d"),
+                                        MagCur, MagMax, DurCur, DurMax, PoolCur);
+                                FLinearColor WeaponColor = FLinearColor(0.85f, 0.85f, 0.85f, 1.0f);
+                                if (WI->IsBroken())
+                                {
+                                        WeaponLine += TEXT("   [BROKEN]");
+                                        WeaponColor = FLinearColor(1.0f, 0.4f, 0.4f, 1.0f);
+                                }
+                                else if (MagCur == 0)
+                                {
+                                        WeaponColor = FLinearColor(1.0f, 0.85f, 0.3f, 1.0f);
+                                }
+                                DrawText(WeaponLine, WeaponColor,
+                                        PanelX + Padding, CursorY, /*Font*/ nullptr, /*Scale*/ 1.55f, false);
+                                CursorY += WeaponH + SectionGap;
+                        }
+                }
+
+                // Support pending block.
+                if (SupportH > 0)
+                {
+                        DrawText(TEXT("支援要請"), FLinearColor(1.0f, 0.85f, 0.3f, 1.0f),
+                                PanelX + Padding, CursorY, /*Font*/ nullptr, /*Scale*/ 1.7f, false);
+                        CursorY += SupportHeaderH;
+                        for (int32 i = 0; i < Pending.Num(); ++i)
+                        {
+                                const FCallsignSupportRequest& R = Pending[i];
+                                const TCHAR* TypeName = TEXT("?");
+                                if (R.Definition)
+                                {
+                                        switch (R.Definition->SupportType)
+                                        {
+                                        case ECallsignSupportType::PrecisionStrike: TypeName = TEXT("精密射撃"); break;
+                                        case ECallsignSupportType::SupplyPod:        TypeName = TEXT("補給投下"); break;
+                                        case ECallsignSupportType::OrbitalBarrage:   TypeName = TEXT("軌道砲撃"); break;
+                                        }
+                                }
+                                const FString Line = FString::Printf(TEXT("[%d] %s  あと %dT"),
+                                        i + 1, TypeName, R.TurnsRemaining);
+                                const FLinearColor Color = (R.TurnsRemaining <= 0)
+                                        ? FLinearColor(1.0f, 0.4f, 0.4f, 1.0f)
+                                        : FLinearColor(0.95f, 0.85f, 0.5f, 1.0f);
+                                DrawText(Line, Color,
+                                        PanelX + Padding + 12.f, CursorY,
+                                        /*Font*/ nullptr, /*Scale*/ 1.4f, false);
+                                CursorY += SupportRowH;
+                        }
                 }
         }
 
@@ -261,97 +402,44 @@ void ACallsignDebugHUD::DrawHUD()
                 }
         }
 
-        // ---- 2b''. Support preview ----
-        // ADR-004 §8: pending list text (top-left) + DrawDebugSphere blast
-        // radius (Yellow normally, Red on the about-to-fire turn) and an
-        // outer Orange sphere for terrain-destruction radius when set.
+        // ---- 2b''. Support preview (world-space blast radius only) ----
+        // Pending list text moved into the consolidated player status panel
+        // above. This block keeps the DebugSphere drawn at the target
+        // location so the player can read the radius in 3D.
         if (bShowSupportPreview)
         {
                 if (UCallsignSupportSystem* SupportSys = World->GetSubsystem<UCallsignSupportSystem>())
                 {
                         const TArray<FCallsignSupportRequest> Pending = SupportSys->GetPendingRequests();
-                        if (Pending.Num() > 0)
+                        for (const FCallsignSupportRequest& R : Pending)
                         {
-                                const float TextScale = 2.0f;
-                                const float LineStep = 44.f;
-                                const float HeaderY = 90.f;
-                                DrawText(TEXT("Support Pending"), FLinearColor(1.0f, 0.85f, 0.3f, 1.0f),
-                                        30.f, HeaderY, /*Font*/ nullptr, TextScale, false);
-                                for (int32 i = 0; i < Pending.Num(); ++i)
+                                if (!R.Definition)
                                 {
-                                        const FCallsignSupportRequest& R = Pending[i];
-                                        const TCHAR* TypeName = TEXT("?");
-                                        if (R.Definition)
-                                        {
-                                                switch (R.Definition->SupportType)
-                                                {
-                                                case ECallsignSupportType::PrecisionStrike: TypeName = TEXT("PrecisionStrike"); break;
-                                                case ECallsignSupportType::SupplyPod:        TypeName = TEXT("SupplyPod"); break;
-                                                case ECallsignSupportType::OrbitalBarrage:   TypeName = TEXT("OrbitalBarrage"); break;
-                                                }
-                                        }
-                                        const FString Line = FString::Printf(
-                                                TEXT("[%d] %s %dT -> (%.0f,%.0f)"),
-                                                i + 1, TypeName, R.TurnsRemaining,
-                                                R.TargetLocation.X, R.TargetLocation.Y);
-                                        const FLinearColor Color = (R.TurnsRemaining <= 0)
-                                                ? FLinearColor(1.0f, 0.4f, 0.4f, 1.0f)
-                                                : FLinearColor(1.0f, 0.85f, 0.3f, 1.0f);
-                                        DrawText(Line, Color, 30.f, HeaderY + LineStep * (i + 1),
-                                                /*Font*/ nullptr, TextScale * 0.8f, false);
-
-                                        if (R.Definition)
-                                        {
-                                                const FColor SphereColor = (R.TurnsRemaining <= 0)
-                                                        ? FColor(255, 80, 80)
-                                                        : FColor(255, 220, 80);
-                                                DrawDebugSphere(World, R.TargetLocation, R.Definition->RadiusCm, /*Segments*/ 16,
-                                                        SphereColor, /*bPersistent*/ false, /*Lifetime*/ 0.05f,
-                                                        /*DepthPriority*/ SDPG_Foreground, /*Thickness*/ 2.0f);
-                                                if (R.Definition->TerrainDestructionRadiusCm > 0.f)
-                                                {
-                                                        const FColor TerrainColor(255, 140, 60);
-                                                        DrawDebugSphere(World, R.TargetLocation,
-                                                                R.Definition->TerrainDestructionRadiusCm, /*Segments*/ 16,
-                                                                TerrainColor, /*bPersistent*/ false, /*Lifetime*/ 0.05f,
-                                                                /*DepthPriority*/ SDPG_Foreground, /*Thickness*/ 1.5f);
-                                                }
-                                        }
+                                        continue;
+                                }
+                                const FColor SphereColor = (R.TurnsRemaining <= 0)
+                                        ? FColor(255, 80, 80)
+                                        : FColor(255, 220, 80);
+                                DrawDebugSphere(World, R.TargetLocation, R.Definition->RadiusCm, /*Segments*/ 16,
+                                        SphereColor, /*bPersistent*/ false, /*Lifetime*/ 0.05f,
+                                        /*DepthPriority*/ SDPG_Foreground, /*Thickness*/ 2.0f);
+                                if (R.Definition->TerrainDestructionRadiusCm > 0.f)
+                                {
+                                        const FColor TerrainColor(255, 140, 60);
+                                        DrawDebugSphere(World, R.TargetLocation,
+                                                R.Definition->TerrainDestructionRadiusCm, /*Segments*/ 16,
+                                                TerrainColor, /*bPersistent*/ false, /*Lifetime*/ 0.05f,
+                                                /*DepthPriority*/ SDPG_Foreground, /*Thickness*/ 1.5f);
                                 }
                         }
                 }
         }
 
-        // ---- 2b'''. Health overlay ----
-        // Draws a player HP bar at the top-left below turn info, plus a small
-        // HP text above each living rifle enemy's head. Provides immediate
-        // feedback that ApplyPointDamage / SupportResolver actually depleted
-        // someone's health.
+        // ---- 2b'''. Enemy floating HP ----
+        // The player HP bar moved into the consolidated panel above. Here
+        // we only render world-space HP indicators above each living enemy.
         if (bShowHealthOverlay && Canvas)
         {
-                APlayerController* PCH = GetOwningPlayerController();
-                APawn* PlayerP = PCH ? PCH->GetPawn() : nullptr;
-                if (PlayerP)
-                {
-                        if (UCallsignHealthComponent* HC = PlayerP->FindComponentByClass<UCallsignHealthComponent>())
-                        {
-                                const float MaxW = 360.f;
-                                const float BarH = 22.f;
-                                const float X = 30.f;
-                                const float Y = 240.f;
-                                const float Pct = HC->MaxHealth > 0
-                                        ? FMath::Clamp(static_cast<float>(HC->CurrentHealth) / HC->MaxHealth, 0.f, 1.f)
-                                        : 0.f;
-                                DrawRect(FLinearColor(0.f, 0.f, 0.f, 0.7f), X, Y, MaxW, BarH);
-                                DrawRect(FLinearColor(0.2f, 0.85f, 0.3f, 0.9f), X, Y, MaxW * Pct, BarH);
-                                const FString HpText = FString::Printf(TEXT("HP %d/%d"),
-                                        HC->CurrentHealth, HC->MaxHealth);
-                                DrawText(HpText, FLinearColor::White, X + 8.f, Y - 2.f,
-                                        /*Font*/ nullptr, /*Scale*/ 1.6f, false);
-                        }
-                }
-
-                // Floating HP text on each living enemy.
                 for (TActorIterator<ACallsignRifleEnemy> It(World); It; ++It)
                 {
                         ACallsignRifleEnemy* Enemy = *It;
@@ -407,46 +495,9 @@ void ACallsignDebugHUD::DrawHUD()
                 }
         }
 
-        // ---- 2b'''''. Weapon status panel (top-left under HP bar) ----
-        // Shows player's current magazine / durability / pool ammo so the
-        // player can see when to reload without having to press [1].
-        if (bShowWeaponStatus && Canvas)
-        {
-                APlayerController* PCW = GetOwningPlayerController();
-                APawn* PlayerW = PCW ? PCW->GetPawn() : nullptr;
-                UCallsignInventoryComponent* Inv = PlayerW
-                        ? PlayerW->FindComponentByClass<UCallsignInventoryComponent>()
-                        : nullptr;
-                UCallsignWeaponInstanceObject* WI = Inv ? Inv->GetCurrentWeapon() : nullptr;
-                UCallsignWeaponDefinition* Def = WI ? WI->GetWeaponDefinition() : nullptr;
-                if (WI && Def)
-                {
-                        const int32 MagCur = WI->GetMagazineCurrent();
-                        const int32 MagMax = Def->MagazineSize;
-                        const int32 DurCur = WI->GetDurabilityCurrent();
-                        const int32 DurMax = Def->DurabilityMax;
-                        const int32 PoolCur = Inv->GetAmmoCount(Def->AmmoType);
-
-                        const float X = 30.f;
-                        const float Y = 280.f;
-                        FString WeaponLine = FString::Printf(TEXT("MAG %d/%d  DUR %d/%d  POOL %d"),
-                                MagCur, MagMax, DurCur, DurMax, PoolCur);
-                        if (WI->IsBroken())
-                        {
-                                WeaponLine += TEXT("  [BROKEN]");
-                        }
-                        FLinearColor Color = FLinearColor::White;
-                        if (WI->IsBroken())
-                        {
-                                Color = FLinearColor(1.0f, 0.4f, 0.4f, 1.0f);
-                        }
-                        else if (MagCur == 0)
-                        {
-                                Color = FLinearColor(1.0f, 0.85f, 0.3f, 1.0f);
-                        }
-                        DrawText(WeaponLine, Color, X, Y, /*Font*/ nullptr, /*Scale*/ 1.6f, false);
-                }
-        }
+        // The previous standalone weapon status text was consolidated into
+        // section 1 (Player status panel). The line below labels the next
+        // section so the file structure stays readable.
 
         // ---- 2c. Narrative message log (bottom-right) ----
         // Roguelike-style scrolling overlay. Renders newest at the bottom,
