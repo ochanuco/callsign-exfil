@@ -140,6 +140,14 @@ void ACallsignExfilPlayerController::SetupInputComponent()
 		InputComponent->BindKey(EKeys::Five,  IE_Pressed, this, &ACallsignExfilPlayerController::CsxSupportPrecisionStrike);
 		InputComponent->BindKey(EKeys::Six,   IE_Pressed, this, &ACallsignExfilPlayerController::CsxSupportSupplyPod);
 		InputComponent->BindKey(EKeys::Seven, IE_Pressed, this, &ACallsignExfilPlayerController::CsxSupportOrbitalBarrage);
+		// WASD: one-tile cardinal move. Coexists with the (intentionally inert)
+		// Enhanced Input move action; ACharacter::MaxWalkSpeed=0 keeps the
+		// free-movement path a no-op, so only these tile-step handlers act on
+		// the keys in practice.
+		InputComponent->BindKey(EKeys::W, IE_Pressed, this, &ACallsignExfilPlayerController::CsxMoveNorth);
+		InputComponent->BindKey(EKeys::S, IE_Pressed, this, &ACallsignExfilPlayerController::CsxMoveSouth);
+		InputComponent->BindKey(EKeys::D, IE_Pressed, this, &ACallsignExfilPlayerController::CsxMoveEast);
+		InputComponent->BindKey(EKeys::A, IE_Pressed, this, &ACallsignExfilPlayerController::CsxMoveWest);
 		// R: restart the current PIE level after mission ends.
 		InputComponent->BindKey(EKeys::R, IE_Pressed, this, &ACallsignExfilPlayerController::CsxRestart);
 		InputComponent->BindKey(EKeys::LeftMouseButton, IE_Pressed, this,
@@ -678,6 +686,62 @@ void ACallsignExfilPlayerController::CsxRestart()
 	const FString CurrentLevel = UGameplayStatics::GetCurrentLevelName(this, /*bRemovePrefixString*/ true);
 	UE_LOG(LogTemp, Display, TEXT("[PC|cmd] CsxRestart: reloading level %s"), *CurrentLevel);
 	UGameplayStatics::OpenLevel(this, FName(*CurrentLevel));
+}
+
+void ACallsignExfilPlayerController::CsxMoveNorth() { TryMoveCardinal(FVector(+1.f,  0.f, 0.f)); }
+void ACallsignExfilPlayerController::CsxMoveSouth() { TryMoveCardinal(FVector(-1.f,  0.f, 0.f)); }
+void ACallsignExfilPlayerController::CsxMoveEast()  { TryMoveCardinal(FVector( 0.f, +1.f, 0.f)); }
+void ACallsignExfilPlayerController::CsxMoveWest()  { TryMoveCardinal(FVector( 0.f, -1.f, 0.f)); }
+
+bool ACallsignExfilPlayerController::TryMoveCardinal(const FVector& WorldDir)
+{
+	if (!IsMyTurn())
+	{
+		return false;
+	}
+	APawn* P = GetPawn();
+	if (!P)
+	{
+		return false;
+	}
+
+	// Resolve player's current node through the NodeOccupant interface so we
+	// don't hard-depend on ACallsignExfilCharacter's concrete type.
+	ACallsignNode* CurrentNode = nullptr;
+	if (P->GetClass()->ImplementsInterface(UCallsignNodeOccupant::StaticClass()))
+	{
+		CurrentNode = ICallsignNodeOccupant::Execute_GetCurrentNode(P);
+	}
+	if (!CurrentNode)
+	{
+		return false;
+	}
+
+	// Pick the adjacent node that most aligns with WorldDir. >0.5 dot ≈ within
+	// 60° of the requested direction; lets diagonally-placed neighbors still
+	// answer cardinal keys gracefully without snapping to an off-axis pick.
+	ACallsignNode* Best = nullptr;
+	float BestDot = 0.5f;
+	const FVector Here = CurrentNode->GetActorLocation();
+	for (const TObjectPtr<ACallsignNode>& Adj : CurrentNode->Adjacent)
+	{
+		if (!Adj || Adj->bIsDestroyed)
+		{
+			continue;
+		}
+		const FVector ToAdj = (Adj->GetActorLocation() - Here).GetSafeNormal();
+		const float Dot = FVector::DotProduct(ToAdj, WorldDir);
+		if (Dot > BestDot)
+		{
+			BestDot = Dot;
+			Best = Adj;
+		}
+	}
+	if (!Best)
+	{
+		return false;
+	}
+	return TryMoveToNode(Best);
 }
 
 void ACallsignExfilPlayerController::HandleLeftClickToMoveNode()

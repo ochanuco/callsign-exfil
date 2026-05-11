@@ -407,13 +407,49 @@ void ACallsignDebugHUD::DrawHUD()
                                         /*bDrawAxis*/ false);
                         }
 
-                        // Hovered-node highlight: when the cursor is over an
-                        // adjacent unoccupied node, ring it green to indicate
-                        // clickability (red when not clickable). Drawn on the
-                        // floor plane (matches the support / impact ring style)
-                        // with a layered outer glow.
+                        // Adjacent-walkable hint rings: during the player's turn,
+                        // mark every walkable neighbor with a subtle cyan ring on
+                        // the floor so the player knows where they can step
+                        // without having to find each tile with the cursor.
                         if (ACallsignExfilPlayerController* CallsignPC = Cast<ACallsignExfilPlayerController>(PCT))
                         {
+                                ACallsignNode* PlayerNode = nullptr;
+                                if (PlayerP && PlayerP->GetClass()->ImplementsInterface(UCallsignNodeOccupant::StaticClass()))
+                                {
+                                        PlayerNode = ICallsignNodeOccupant::Execute_GetCurrentNode(PlayerP);
+                                }
+                                if (PlayerNode)
+                                {
+                                        const FColor HintColor(80, 180, 220);
+                                        FColor HintGlow = HintColor;
+                                        HintGlow.A = 70;
+                                        for (const TObjectPtr<ACallsignNode>& Adj : PlayerNode->Adjacent)
+                                        {
+                                                if (!Adj || Adj->bIsDestroyed)
+                                                {
+                                                        continue;
+                                                }
+                                                if (!CallsignPC->CanMoveToNode(Adj))
+                                                {
+                                                        continue;
+                                                }
+                                                const FVector AdjLoc = Adj->GetActorLocation() + FVector(0.f, 0.f, -88.f);
+                                                DrawDebugCircle(World, AdjLoc, /*Radius*/ 100.f, /*Segments*/ 36,
+                                                        HintGlow, /*bPersistent*/ false, /*Lifetime*/ 0.05f,
+                                                        /*DepthPriority*/ SDPG_Foreground, /*Thickness*/ 6.f,
+                                                        /*YAxis*/ FVector(0.f, 1.f, 0.f), /*XAxis*/ FVector(1.f, 0.f, 0.f),
+                                                        /*bDrawAxis*/ false);
+                                                DrawDebugCircle(World, AdjLoc, /*Radius*/ 100.f, /*Segments*/ 36,
+                                                        HintColor, /*bPersistent*/ false, /*Lifetime*/ 0.05f,
+                                                        /*DepthPriority*/ SDPG_Foreground, /*Thickness*/ 2.f,
+                                                        /*YAxis*/ FVector(0.f, 1.f, 0.f), /*XAxis*/ FVector(1.f, 0.f, 0.f),
+                                                        /*bDrawAxis*/ false);
+                                        }
+                                }
+
+                                // Hovered-node highlight: stronger ring on the cell the
+                                // cursor is currently over (green when clickable, red
+                                // when not). Drawn ON TOP of the adjacent hint rings.
                                 if (ACallsignNode* Hovered = CallsignPC->GetNodeUnderCursor())
                                 {
                                         // Hover ring tuning. Centralized so the two draws
@@ -673,6 +709,8 @@ void ACallsignDebugHUD::DrawHUD()
                         const TCHAR* Label;
                 };
                 static const FKeyHint Hints[] = {
+                        { TEXT("[WASD]"), TEXT("1マス移動") },
+                        { TEXT("[LMB]"), TEXT("隣接ノードへ移動") },
                         { TEXT("[1]"), TEXT("ステータス") },
                         { TEXT("[2]"), TEXT("射撃") },
                         { TEXT("[3]"), TEXT("リロード") },
@@ -680,7 +718,6 @@ void ACallsignDebugHUD::DrawHUD()
                         { TEXT("[5]"), TEXT("精密射撃 要請") },
                         { TEXT("[6]"), TEXT("補給投下 要請") },
                         { TEXT("[7]"), TEXT("軌道砲撃 要請") },
-                        { TEXT("[LMB]"), TEXT("隣接ノードへ移動") },
                 };
                 static constexpr int32 HintCount = sizeof(Hints) / sizeof(Hints[0]);
 

@@ -178,6 +178,18 @@ public:
 	/** Demo binding: reload the current level. Useful after mission ends. */
 	void CsxRestart();
 
+	/** WASD: pick the player's adjacent node best matching the cardinal direction and walk to it. */
+	void CsxMoveNorth();
+	void CsxMoveSouth();
+	void CsxMoveEast();
+	void CsxMoveWest();
+
+	/**
+	 *  Resolve the adjacent node closest to a unit world-space direction and
+	 *  delegate to TryMoveToNode. Returns true when a move was issued.
+	 */
+	bool TryMoveCardinal(const FVector& WorldDir);
+
 	/** Mouse cursor → node click handler. Invokes TryMoveToNode if the hit node is adjacent + free. */
 	void HandleLeftClickToMoveNode();
 
