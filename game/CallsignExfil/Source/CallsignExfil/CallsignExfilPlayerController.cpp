@@ -666,6 +666,15 @@ void ACallsignExfilPlayerController::CsxRestart()
 	{
 		return;
 	}
+	// Only allow restart after mission is over — otherwise a stray R press
+	// during play wipes progress. The HUD banner shows "[R] 再出撃" only
+	// in that window so this matches the documented UX.
+	const ACallsignExfilGameMode* GM = World->GetAuthGameMode<ACallsignExfilGameMode>();
+	if (!GM || GM->MissionResult == ECallsignMissionResult::InProgress)
+	{
+		UE_LOG(LogTemp, Display, TEXT("[PC|cmd] CsxRestart ignored: mission still in progress"));
+		return;
+	}
 	const FString CurrentLevel = UGameplayStatics::GetCurrentLevelName(this, /*bRemovePrefixString*/ true);
 	UE_LOG(LogTemp, Display, TEXT("[PC|cmd] CsxRestart: reloading level %s"), *CurrentLevel);
 	UGameplayStatics::OpenLevel(this, FName(*CurrentLevel));
