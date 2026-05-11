@@ -14,6 +14,23 @@ void UCallsignHealthComponent::BeginPlay()
 	bIsDead = false;
 }
 
+int32 UCallsignHealthComponent::ApplyHeal(int32 Amount)
+{
+	if (bIsDead || Amount <= 0)
+	{
+		return 0;
+	}
+	const int32 Before = CurrentHealth;
+	CurrentHealth = FMath::Min(MaxHealth, CurrentHealth + Amount);
+	const int32 Restored = CurrentHealth - Before;
+	if (Restored > 0)
+	{
+		UE_LOG(LogTemp, Display, TEXT("[Health] %s +%d (%d/%d)"),
+			*GetNameSafe(GetOwner()), Restored, CurrentHealth, MaxHealth);
+	}
+	return Restored;
+}
+
 int32 UCallsignHealthComponent::ApplyDamage(int32 Amount, AActor* /*Causer*/)
 {
 	if (bIsDead || Amount <= 0)

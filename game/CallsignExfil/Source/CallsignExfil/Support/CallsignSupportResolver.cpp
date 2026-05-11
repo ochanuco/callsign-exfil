@@ -2,7 +2,9 @@
 
 #include "CallsignSupportResolver.h"
 #include "Data/CallsignSupportTypes.h"
+#include "HUD/CallsignMessageBus.h"
 #include "Node/CallsignNode.h"
+#include "Pawns/CallsignHealthComponent.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "GameFramework/Pawn.h"
@@ -73,7 +75,30 @@ FCallsignSupportResolution UCallsignSupportResolver::Resolve(const FCallsignSupp
 		}
 	}
 
-	// 2. Terrain destruction pass — flip bIsDestroyed on Destroyable Nodes
+	// 2. Heal pass — restore HP on the requester if they're inside RadiusCm.
+	// Limited to the request's RequestedBy (the player in Phase 3) so a
+	// SupplyPod targeting an enemy doesn't accidentally heal the enemy.
+	// Phase 4 will replace this with a richer pickup / consumable layer.
+	if (Def->HealAmount > 0 && Instigator)
+	{
+		const float HealR2 = Def->RadiusCm * Def->RadiusCm;
+		const FVector InstLoc = Instigator->GetActorLocation();
+		if (Def->RadiusCm <= 0.f || FVector::DistSquared(InstLoc, Center) <= HealR2)
+		{
+			if (UCallsignHealthComponent* HC = Instigator->FindComponentByClass<UCallsignHealthComponent>())
+			{
+				const int32 Restored = HC->ApplyHeal(Def->HealAmount);
+				if (Restored > 0)
+				{
+					Out.HealEventsApplied = Restored;
+					CallsignMsg::PushSystem(World, FString::Printf(
+						TEXT("補給を受領。HP +%d。"), Restored));
+				}
+			}
+		}
+	}
+
+	// 3. Terrain destruction pass — flip bIsDestroyed on Destroyable Nodes
 	// inside TerrainDestructionRadiusCm and remove them from peers'
 	// Adjacent arrays (one-way; ADR-004 §13 OQ-1: full bidirectional GC
 	// is Phase 4).
@@ -122,9 +147,9 @@ FCallsignSupportResolution UCallsignSupportResolver::Resolve(const FCallsignSupp
 	}
 
 	UE_LOG(LogTemp, Display,
-		TEXT("[SupportResolver] resolved id=%s pawnsHit=%d nodesDestroyed=%d friendlyFire=%d"),
-		*Request.RequestId.ToString(), Out.DamageEventsEmitted, Out.DestroyedNodes.Num(),
-		Out.bFriendlyFireApplied ? 1 : 0);
+		TEXT("[SupportResolver] resolved id=%s pawnsHit=%d healed=%d nodesDestroyed=%d friendlyFire=%d"),
+		*Request.RequestId.ToString(), Out.DamageEventsEmitted, Out.HealEventsApplied,
+		Out.DestroyedNodes.Num(), Out.bFriendlyFireApplied ? 1 : 0);
 
 	return Out;
 }

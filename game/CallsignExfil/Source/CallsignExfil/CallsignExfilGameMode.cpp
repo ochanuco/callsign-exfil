@@ -427,18 +427,19 @@ void ACallsignExfilGameMode::InitPhase3SupportDemo()
 		SupportSys->RegisterDefinition(ECallsignSupportType::PrecisionStrike, Def);
 	}
 
-	// SupplyPod: medium delay, no damage. ADR-004 §13 OQ-4: bDealsDamage=
-	// false makes it a "wait then nothing visible" demo for the queue/UI
-	// path. Phase 4 will hang actual supply effects off the resolved event.
+	// SupplyPod: medium delay, no damage, heals the requester by 30 HP if
+	// they sit inside the radius at resolve time. Gives key 6 a concrete
+	// effect for the Phase 3 demo (proper supply-effect layer is Phase 4).
 	{
 		UCallsignSupportDefinition* Def = NewObject<UCallsignSupportDefinition>(this);
 		Def->SupportType = ECallsignSupportType::SupplyPod;
 		Def->DelayTurns = 2;
-		Def->RadiusCm = 150.f;
+		Def->RadiusCm = 200.f;
 		Def->Damage = 0;
 		Def->TerrainDestructionRadiusCm = 0.f;
 		Def->bAllowsFriendlyFire = true;
 		Def->bDealsDamage = false;
+		Def->HealAmount = 30;
 		SupportSys->RegisterDefinition(ECallsignSupportType::SupplyPod, Def);
 	}
 
