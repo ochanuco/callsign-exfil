@@ -37,6 +37,15 @@ public:
         UPROPERTY(BlueprintReadWrite, Category = "Callsign|Turn")
         bool bTurnFinished = false;
 
+        /**
+         *  1-based identifier used in HUD messages to distinguish enemies.
+         *  GameMode assigns this at spawn (1, 2, ...) so the chat log can
+         *  say 敵#2 が制圧された instead of an ambiguous 敵. Defaults to 0
+         *  for editor-placed enemies that GameMode never tagged.
+         */
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Callsign|Display")
+        int32 DisplayIndex = 0;
+
         /** Phase 1 debug visual: cube child mesh so the enemy is visible without an SK mesh. */
         UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Callsign|Visual")
         TObjectPtr<UStaticMeshComponent> DebugMesh;

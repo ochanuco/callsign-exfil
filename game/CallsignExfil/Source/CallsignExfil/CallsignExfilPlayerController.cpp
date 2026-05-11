@@ -23,6 +23,7 @@
 #include "Node/CallsignNode.h"
 #include "Node/CallsignNodeOccupant.h"
 #include "Pawns/CallsignHealthComponent.h"
+#include "Pawns/CallsignRifleEnemy.h"
 #include "Pawns/CallsignTargeting.h"
 #include "Turn/CallsignTurnParticipant.h"
 #include "Turn/CallsignTurnSystem.h"
@@ -389,14 +390,19 @@ bool ACallsignExfilPlayerController::TryShootAtActor(AActor* Target)
 	UE_LOG(LogTemp, Display, TEXT("[PC] TryShootAtActor -> hit=%d damage=%.2f"),
 		Result.bHit ? 1 : 0, Result.DamageApplied);
 
+	const ACallsignRifleEnemy* TargetEnemy = Cast<ACallsignRifleEnemy>(Target);
+	const FString TargetTag = (TargetEnemy && TargetEnemy->DisplayIndex > 0)
+		? FString::Printf(TEXT("敵#%d"), TargetEnemy->DisplayIndex)
+		: FString(TEXT("敵"));
 	if (Result.bHit)
 	{
 		CallsignMsg::PushPlayer(GetWorld(), FString::Printf(
-			TEXT("敵を撃った。命中、%.0f ダメージ。"), Result.DamageApplied));
+			TEXT("%sを撃った。命中、%.0f ダメージ。"), *TargetTag, Result.DamageApplied));
 	}
 	else
 	{
-		CallsignMsg::PushPlayer(GetWorld(), TEXT("敵を撃った。外れた。"));
+		CallsignMsg::PushPlayer(GetWorld(), FString::Printf(
+			TEXT("%sを撃った。外れた。"), *TargetTag));
 	}
 
 	// Action consumed: end the turn whether hit or miss.

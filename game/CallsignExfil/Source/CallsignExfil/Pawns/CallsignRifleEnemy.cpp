@@ -155,7 +155,10 @@ float ACallsignRifleEnemy::TakeDamage(float DamageAmount, FDamageEvent const& Da
 void ACallsignRifleEnemy::HandleDied(UCallsignHealthComponent* /*Comp*/)
 {
         UE_LOG(LogTemp, Display, TEXT("[Health] Rifle enemy %s down — starting death anim"), *GetName());
-        CallsignMsg::PushSystem(GetWorld(), TEXT("敵が制圧された。"));
+        const FString Msg = (DisplayIndex > 0)
+                ? FString::Printf(TEXT("敵#%d が制圧された。"), DisplayIndex)
+                : FString(TEXT("敵が制圧された。"));
+        CallsignMsg::PushSystem(GetWorld(), Msg);
 
         // Vacate node occupancy AND drop capsule collision immediately so
         // movement queries / IsOccupied don't see a stale blocker while the

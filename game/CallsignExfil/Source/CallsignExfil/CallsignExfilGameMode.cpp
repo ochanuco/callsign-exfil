@@ -387,6 +387,7 @@ void ACallsignExfilGameMode::SpawnPhase1Demo()
 			HC->CurrentHealth = 30;
 		}
 		++EnemyCount;
+		Enemy->DisplayIndex = EnemyCount; // 1-based; surfaced in HUD messages
 	}
 
 	UE_LOG(LogTemp, Display, TEXT("[GameMode] Phase1Demo spawned: 9 nodes, %d enemies, player on center"),
